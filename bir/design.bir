@@ -1,0 +1,57 @@
+const read = 4206900
+const push = 4206901
+const assign = 4206902
+const pop = 4206903
+const dump = 4206904
+const length = 4206905
+
+scope:verb [key, value] {
+	switch verb {
+		case push:
+			std_declare_varible_upper_scope(key, value)
+			return value
+	}
+}
+
+stack:verb [valindex] {
+	init {
+		let index = 0
+	}
+
+	switch verb {
+		case push:
+			index++
+			scope:push [index, valindex]
+			return value
+		case read:
+			return scope:read [valindex]
+		case pop:
+			let value = scope:read [valindex]
+			scope:delete [valindex]
+			index--
+			return value
+		case length:
+			return index
+		case dump:
+			let i = 0
+			return anon {
+				while i < index {
+					yield scope:read [i]
+				}
+			}
+	}
+}
+
+my_array implements stack
+
+for 10 as i {
+	my_array:push (i * 2)
+}
+
+print stack:read (4) // 8
+
+let i = 0
+while i < my_array:length {
+	print goto my_array:dump ()
+}
+
