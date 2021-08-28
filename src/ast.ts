@@ -16,6 +16,7 @@ namespace Bir {
 	export type Statement =
 		| VariableDeclarationStatement
 		| BlockDeclarationStatement
+		| NativeBlockDeclarationStatement
 		| ForStatement
 		| SwitchStatement
 		| WhileStatement
@@ -38,6 +39,20 @@ namespace Bir {
 		verbs: Identifier[];
 		arguments: Identifier[];
 		body: BlockBody;
+		position: Position;
+		implementing: boolean;
+		implements: Identifier;
+		initialized: boolean
+		instance: Scope
+		superInstance: Scope
+	}
+
+	export interface NativeBlockDeclarationStatement {
+		operation: "native_block_declaration";
+		name: Identifier;
+		verbs: Identifier[];
+		arguments: Identifier[];
+		body: (...args: IntPrimitiveExpression[]) => IntPrimitiveExpression;
 		position: Position;
 		implementing: boolean;
 		implements: Identifier;

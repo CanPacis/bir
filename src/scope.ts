@@ -7,7 +7,7 @@ export default class Scope {
 		kind: Bir.VariableKind;
 	}>;
 
-	blocks: Array<Bir.BlockDeclarationStatement>;
+	blocks: Array<Bir.BlockDeclarationStatement|Bir.NativeBlockDeclarationStatement>;
 
 	constructor(public parents: Array<Scope> = []) {
 		this.frame = [];
@@ -64,11 +64,11 @@ export default class Scope {
 		}
 	}
 
-	addBlock(block: Bir.BlockDeclarationStatement): void {
+	addBlock(block: Bir.BlockDeclarationStatement | Bir.NativeBlockDeclarationStatement): void {
 		this.blocks.push(block);
 	}
 
-	findBlock(name: string): Bir.BlockDeclarationStatement | undefined {
+	findBlock(name: string): Bir.BlockDeclarationStatement | Bir.NativeBlockDeclarationStatement | undefined {
 		let value = this.blocks.find((b) => b.name.value === name);
 
 		if (!value) {

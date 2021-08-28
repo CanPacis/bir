@@ -16,3 +16,5 @@ toplam implements add
 
 let g = toplam (10, 20)
 let h = toplam (10, 20)
+
+implementor_engine_interface ()

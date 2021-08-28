@@ -4,6 +4,7 @@ import { parse } from "https://deno.land/std@0.106.0/path/mod.ts";
 import BirUtil from "./util.ts";
 import Scope from "./scope.ts";
 import BirError, { ErrorReport } from "./error.ts";
+import Implementor from "../bir/implementor.bir.ts"
 
 export default class BirEngine {
 	callstack: BirUtil.Callstack[];
@@ -37,6 +38,7 @@ export default class BirEngine {
 		this.content = decoder.decode(await Deno.readFile(this.path));
 		this.parsed = parser.parse(this.content);
 		this.callstack = [{ name: "main", stack: this.parsed.program }];
+		this.currentScope.addBlock(Implementor.EngineInterface)
 		this.errorReport = {
 			filename: this.filename,
 			path: this.path,
@@ -74,6 +76,11 @@ export default class BirEngine {
 				case "block_declaration":
 					await this.resolveBlockDeclaration(statement);
 					break;
+				case "native_block_declaration":
+					await this.resolveNativeBlockDeclaration(
+						statement as Bir.NativeBlockDeclarationStatement
+					);
+					break;
 				case "quantity_modifier_statement":
 					await this.resolveQuantityModifier(statement);
 					break;
@@ -97,15 +104,11 @@ export default class BirEngine {
 		statement: Bir.VariableDeclarationStatement
 	): Promise<void> {
 		let key = statement.left;
-		
-		if (this.currentScope.find(key.value) === undefined) {
-			let value = await this.resolveExpression(statement.right)
 
-			this.currentScope.push(
-				statement.left,
-				value,
-				statement.kind
-			);
+		if (this.currentScope.find(key.value) === undefined) {
+			let value = await this.resolveExpression(statement.right);
+
+			this.currentScope.push(statement.left, value, statement.kind);
 		} else {
 			new BirError(
 				this.errorReport,
@@ -119,9 +122,19 @@ export default class BirEngine {
 		statement: Bir.BlockDeclarationStatement
 	): Promise<void> {
 		if (!statement.implementing) {
-			this.currentScope.addBlock(statement);
+			if (this.currentScope.findBlock(statement.name.value) === undefined) {
+				this.currentScope.addBlock(statement);
+			} else {
+				new BirError(
+					this.errorReport,
+					`Block '${statement.name.value}' has already been declared`,
+					statement.position
+				);
+			}
 		} else {
-			let supBlock = this.currentScope.findBlock(statement.implements.value);
+			let supBlock = this.currentScope.findBlock(
+				statement.implements.value
+			) as Bir.BlockDeclarationStatement;
 
 			if (supBlock) {
 				let copy: Bir.BlockDeclarationStatement = { ...supBlock };
@@ -146,7 +159,15 @@ export default class BirEngine {
 				statement.verbs = supBlock.verbs;
 				statement.body = supBlock.body;
 
-				this.currentScope.addBlock(statement);
+				if (this.currentScope.findBlock(statement.name.value) === undefined) {
+					this.currentScope.addBlock(statement);
+				} else {
+					new BirError(
+						this.errorReport,
+						`Block '${statement.name.value}' has already been declared`,
+						statement.position
+					);
+				}
 			} else {
 				new BirError(
 					this.errorReport,
@@ -154,6 +175,20 @@ export default class BirEngine {
 					statement.implements.position
 				);
 			}
+		}
+	}
+
+	async resolveNativeBlockDeclaration(
+		statement: Bir.NativeBlockDeclarationStatement
+	): Promise<void> {
+		if (this.currentScope.findBlock(statement.name.value) === undefined) {
+			this.currentScope.addBlock(statement);
+		} else {
+			new BirError(
+				this.errorReport,
+				`Block '${statement.name.value}' has already been declared`,
+				statement.position
+			);
 		}
 	}
 
@@ -252,69 +287,77 @@ export default class BirEngine {
 			let block = this.currentScope.findBlock(expression.name.value);
 
 			if (block) {
-				let errors = [];
+				if (block.operation === "block_declaration") {
+					let errors = [];
 
-				for (let i = 0; i < block.arguments.length; i++) {
-					let expected = block.arguments[i];
-					let given = expression.arguments[i];
+					for (let i = 0; i < block.arguments.length; i++) {
+						let expected = block.arguments[i];
+						let given = expression.arguments[i];
 
-					if (!given) {
-						errors.push(
-							`Expected a parameter for argument '${expected.value}'`
-						);
-					}
-				}
-
-				if (errors.length > 0) {
-					new BirError(
-						this.errorReport,
-						errors.join("\n"),
-						expression.position
-					);
-				}
-
-				if (block.body.init) {
-					if (!block.initialized) {
-						let instance = new Scope([]);
-						let initScope = new Scope([this.currentScope]);
-						this.scopestack.push(initScope);
-						this.callstack.push({
-							name: `${block.name.value}:init`,
-							stack: JSON.parse(JSON.stringify(block.body.init)),
-						});
-						await this.resolveCallstack(this.currentCallstack);
-						let lastScope = this.scopestack.pop();
-						if (lastScope) {
-							instance = lastScope;
+						if (!given) {
+							errors.push(
+								`Expected a parameter for argument '${expected.value}'`
+							);
 						}
-						await this.currentScope.flagBlockAsInitialized(
-							block.name.value,
-							instance
+					}
+
+					if (errors.length > 0) {
+						new BirError(
+							this.errorReport,
+							errors.join("\n"),
+							expression.position
 						);
 					}
+
+					if (block.body.init) {
+						if (!block.initialized) {
+							let instance = new Scope([]);
+							let initScope = new Scope([this.currentScope]);
+							this.scopestack.push(initScope);
+							this.callstack.push({
+								name: `${block.name.value}:init`,
+								stack: JSON.parse(JSON.stringify(block.body.init)),
+							});
+							await this.resolveCallstack(this.currentCallstack);
+							let lastScope = this.scopestack.pop();
+							if (lastScope) {
+								instance = lastScope;
+							}
+							await this.currentScope.flagBlockAsInitialized(
+								block.name.value,
+								instance
+							);
+						}
+					}
+
+					let scope = new Scope([block.instance, this.currentScope]);
+					if (block.superInstance) {
+						scope.parents.splice(1, 0, block.superInstance);
+					}
+
+					let i = 0;
+					for await (let expected of block.arguments) {
+						let given = await this.resolveExpression(expression.arguments[i]);
+
+						scope.push(
+							BirUtil.generateIdentifier(expected.value),
+							given,
+							"let"
+						);
+						i++;
+					}
+
+					this.scopestack.push(scope);
+					this.callstack.push({
+						name: block.name.value,
+						stack: JSON.parse(JSON.stringify(block.body.program)),
+					});
+					let result = await this.resolveCallstack(this.currentCallstack);
+					this.scopestack.pop();
+					return result;
+				} else {
+					return block.body();
 				}
-
-				let scope = new Scope([block.instance, this.currentScope]);
-				if (block.superInstance) {
-					scope.parents.splice(1, 0, block.superInstance);
-				}
-
-				let i = 0;
-				for await (let expected of block.arguments) {
-					let given = await this.resolveExpression(expression.arguments[i]);
-
-					scope.push(BirUtil.generateIdentifier(expected.value), given, "let");
-					i++;
-				}
-
-				this.scopestack.push(scope);
-				this.callstack.push({
-					name: block.name.value,
-					stack: JSON.parse(JSON.stringify(block.body.program)),
-				});
-				let result = await this.resolveCallstack(this.currentCallstack);
-				this.scopestack.pop();
-				return result;
 			} else {
 				new BirError(
 					this.errorReport,
