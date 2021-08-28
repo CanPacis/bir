@@ -1,4 +1,4 @@
-export namespace Bir {
+namespace Bir {
 	export interface Program {
 		imports: [];
 		program: Main[];
@@ -149,9 +149,20 @@ export namespace Bir {
 		position: Position;
 	}
 
-	export interface PrimitiveExpression {
+	export type PrimitiveExpression =
+		| StringPrimitiveExpression
+		| IntPrimitiveExpression;
+
+	export interface StringPrimitiveExpression {
 		operation: "primitive";
-		type: PrimitiveType;
+		type: "string";
+		value: string | number;
+		position: Position;
+	}
+
+	export interface IntPrimitiveExpression {
+		operation: "primitive";
+		type: "int";
 		value: string | number;
 		position: Position;
 	}
@@ -199,3 +210,5 @@ export namespace Bir {
 		position: Position;
 	}
 }
+
+export default Bir;

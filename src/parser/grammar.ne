@@ -26,7 +26,7 @@ export class BirParser {
       console.error("Grammar is ambigious.");
     }
 
-    return this.parser.results;
+    return this.parser.results[0];
   }
 }
 

@@ -88,6 +88,7 @@ const lexer = moo.compile({
   Identifier: {
     match: /[a-zA-Z_][a-zA-Z_0-9]*/,
     type: moo.keywords({
+      Use: "use",
       Const: "const",
       Let: "let",
       Init: "init",
@@ -101,6 +102,7 @@ const lexer = moo.compile({
   		For: "for",
   		While: "while",
   		As: "as",
+      Case: "case"
     })
   }
 })
@@ -357,7 +359,7 @@ const grammar: Grammar = {
           position: position(d[0])
         })  },
     {"name": "string", "symbols": [(lexer.has("StringLiteral") ? {type: "StringLiteral"} : StringLiteral)], "postprocess": d => ({ operation: "primitive", value: d[0].value,position: position(d[0]), type: "string" })},
-    {"name": "identifier", "symbols": [(lexer.has("Identifier") ? {type: "Identifier"} : Identifier)], "postprocess": d => ({ type: "identifier", value: d[0].value, position: { line: d[0].line, col: d[0].col } })},
+    {"name": "identifier", "symbols": [(lexer.has("Identifier") ? {type: "Identifier"} : Identifier)], "postprocess": d => ({ operation: "identifier", value: d[0].value, position: { line: d[0].line, col: d[0].col } })},
     {"name": "_$ebnf$1", "symbols": []},
     {"name": "_$ebnf$1", "symbols": ["_$ebnf$1", /[\s]/], "postprocess": (d) => d[0].concat([d[1]])},
     {"name": "_", "symbols": ["_$ebnf$1"], "postprocess": (d) =>  null},
