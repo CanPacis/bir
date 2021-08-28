@@ -1,0 +1,5 @@
+console:verb [] {
+  init() {
+    let index = 0
+  }
+}

@@ -1,3 +1,5 @@
+import Scope from "./scope.ts";
+
 namespace Bir {
 	export interface Program {
 		imports: [];
@@ -33,12 +35,15 @@ namespace Bir {
 	export interface BlockDeclarationStatement {
 		operation: "block_declaration";
 		name: Identifier;
-		verbs: Expression[];
-		arguments: Expression[];
+		verbs: Identifier[];
+		arguments: Identifier[];
 		body: BlockBody;
 		position: Position;
 		implementing: boolean;
 		implements: Identifier;
+		initialized: boolean
+		instance: Scope
+		superInstance: Scope
 	}
 
 	export interface BlockBody {
@@ -95,7 +100,7 @@ namespace Bir {
 
 	export interface AssignStatement {
 		operation: "assign_statement";
-		left: Mutatable;
+		left: Identifier;
 		right: Expression;
 		position: Position;
 	}
@@ -104,10 +109,11 @@ namespace Bir {
 		operation: "quantity_modifier_statement";
 		type: QuantityModifierType;
 		statement: Mutatable;
+		right?: Expression;
 		position: Position;
 	}
 
-	export type Mutatable = Identifier;
+	export type Mutatable = Expression;
 
 	export type QuantityModifierType =
 		| "increment"
@@ -123,13 +129,20 @@ namespace Bir {
 		| ConditionExpression
 		| ArithmeticExpression
 		| BlockCallExpression
-		| PrimitiveExpression;
+		| PrimitiveExpression
+		| ReferenceExpression;
 
 	export interface ConditionExpression {
-		operation: "conditiion";
+		operation: "condition";
 		type: ConditionType;
 		left: Expression;
 		right: Expression;
+		position: Position;
+	}
+
+	export interface ReferenceExpression {
+		operation: "reference";
+		value: string;
 		position: Position;
 	}
 
@@ -143,7 +156,7 @@ namespace Bir {
 
 	export interface BlockCallExpression {
 		operation: "block_call";
-		name: Expression;
+		name: Identifier;
 		verbs: Expression[];
 		arguments: Expression[];
 		position: Position;
@@ -156,14 +169,14 @@ namespace Bir {
 	export interface StringPrimitiveExpression {
 		operation: "primitive";
 		type: "string";
-		value: string | number;
+		value: string;
 		position: Position;
 	}
 
 	export interface IntPrimitiveExpression {
 		operation: "primitive";
 		type: "int";
-		value: string | number;
+		value: number;
 		position: Position;
 	}
 

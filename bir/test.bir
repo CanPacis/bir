@@ -1,51 +1,18 @@
-use "std"
+add [a, b] {
+  init {
+    let index = 4
+  }
 
-const read = 4206900
-const push = 4206901
-const assign = 4206902
-const pop = 4206903
-const dump = 4206904
-const length = 4206905
-
-stack:verb [valindex] {
-	init {
-		let index = 0
-	}
-
-	switch verb {
-		case push {
-			index++
-			scope:push (index, valindex)
-			return value
-		}
-		case read {
-			return scope:read (valindex)
-		}
-		case pop {
-			let value = scope:read (valindex)
-			scope:delete (valindex)
-			index--
-			return value
-		}
-		case length {
-			return index
-		}
-		case dump {
-			let i = 0
-			return 0
-		}
-	}
+  index++
+  return a + b + index
 }
 
-my_array implements stack
+let c = add (2, 5)
+let d = add (2, 5)
+let e = add (2, 5)
+let f = add (2, 5)
 
-for 10 as i {
-	my_array:push (i * 2)
-}
+toplam implements add
 
-print (stack:read (4))
-
-let i = 0
-while i < my_array:length () {
-	print (my_array:dump ())
-}
+let g = toplam (10, 20)
+let h = toplam (10, 20)

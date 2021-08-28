@@ -17,6 +17,8 @@ namespace BirUtil {
 			position: { line: 0, col: 0 },
 		};
 	}
+
+	export type Callstack = { name: string; stack: Bir.Main[] };
 }
 
 export default BirUtil;
