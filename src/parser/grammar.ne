@@ -362,7 +362,7 @@ number -> %NumberLiteral {% d => ({
 
 string -> %StringLiteral {% d => ({ operation: "primitive", value: d[0].value,position: position(d[0]), type: "string" }) %}
 
-identifier -> %Identifier {% d => ({ type: "identifier", value: d[0].value, position: { line: d[0].line, col: d[0].col } }) %}
+identifier -> %Identifier {% d => ({ operation: "identifier", value: d[0].value, position: { line: d[0].line, col: d[0].col } }) %}
 
 _ -> [\s]:*     {% (d) =>  null %}
 __ -> [\s]:+     {% (d) =>  null %}
