@@ -103,6 +103,13 @@ export default class BirEngine {
 					break;
 				case "return_statement":
 					value = await this.resolveExpression(statement.expression);
+					if (this.currentCallstack.name === "main") {
+						new BirError(
+							this.errorReport,
+							`Top level return statements are not allowed`,
+							statement.position
+						);
+					}
 					this.callstack.pop();
 					return value;
 				case "block_declaration":
@@ -127,11 +134,21 @@ export default class BirEngine {
 					break;
 				case "while_statement":
 					await this.resolveWhileStatement(statement);
-					this.callstack.pop();
+					if (this.currentCallstack.name !== "main") {
+						this.callstack.pop();
+					}
 					return value;
 				case "if_statement":
 					value = await this.resolveIfStatement(statement);
-					this.callstack.pop();
+					if (this.currentCallstack.name !== "main") {
+						this.callstack.pop();
+					}
+					return value;
+				case "switch_statement":
+					await this.resolveSwitchStatement(statement);
+					if (this.currentCallstack.name !== "main") {
+						this.callstack.pop();
+					}
 					return value;
 				default:
 					break;
@@ -140,6 +157,29 @@ export default class BirEngine {
 
 		this.callstack.pop();
 		return value;
+	}
+
+	async resolveSwitchStatement(
+		statement: Bir.SwitchStatement
+	): Promise<Bir.IntPrimitiveExpression> {
+		let condition = await this.resolveExpression(statement.condition);
+		let body: Bir.Main[] | null = null;
+
+		for await (const _c of statement.cases) {
+			let _case = await this.resolveExpression(_c.case);
+			if (_case.value === condition.value) {
+				body = _c.body;
+				break;
+			}
+		}
+
+		if (body) {
+			this.callstack.push({ name: "anonymous-switch", stack: body });
+			let result = await this.resolveCallstack(this.currentCallstack);
+			return result;
+		}
+
+		return BirUtil.generateInt(0);
 	}
 
 	async resolveWhileStatement(statement: Bir.WhileStatement): Promise<void> {
@@ -276,7 +316,7 @@ export default class BirEngine {
 					let initScope = new Scope([this.currentScope]);
 					this.scopestack.push(initScope);
 					this.callstack.push({
-						name: copy.name.value,
+						name: `$${copy.name.value}`,
 						stack: JSON.parse(JSON.stringify(copy.body.init)),
 					});
 					await this.resolveCallstack(this.currentCallstack);
@@ -321,7 +361,7 @@ export default class BirEngine {
 								);
 								i++;
 							}
-							
+
 							var index = statement.instance.find("index");
 
 							if (index) {
@@ -596,7 +636,7 @@ export default class BirEngine {
 
 						this.scopestack.push(scope);
 						this.callstack.push({
-							name: block.name.value,
+							name: `$${block.name.value}`,
 							stack: JSON.parse(JSON.stringify(block.body.program)),
 						});
 						let result = await this.resolveCallstack(this.currentCallstack);

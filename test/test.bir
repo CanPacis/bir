@@ -2,6 +2,14 @@ use "std"
 use "console"
 use "stack"
 
-custom_message implements console {[72, 101, 108, 108, 111]}
+let a = 1
 
-custom_message:output (0)
+switch a {
+  case 1 {
+    return 8
+  }
+  case 20 {}
+  case 30 {}
+}
+
+print(10)
