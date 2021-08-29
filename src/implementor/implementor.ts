@@ -103,7 +103,14 @@ export default class Implementor {
 			await Deno.stdout.write(Uint8Array.from(output_buffer));
 			output_buffer = [];
 		} else {
-			output_buffer.push(args[0].value);
+			if (args[1]?.value === 1) {
+				let split = args[0].value.toString().split("")
+				for (let i = 0; i < split.length; i++) {
+					output_buffer.push(split[i].charCodeAt(0));
+				}
+			} else {
+				output_buffer.push(args[0].value);
+			}
 		}
 		return BirUtil.generateInt(0);
 	}

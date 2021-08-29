@@ -45,7 +45,7 @@ namespace Bir {
 		implementing: boolean;
 		implements: Identifier;
 		initialized: boolean
-		populate?: StringPrimitiveExpression
+		populate?: StringPrimitiveExpression | ArrayPrimitiveExpression
 		instance: Scope
 		superInstance: Scope
 	}
@@ -190,6 +190,13 @@ namespace Bir {
 		operation: "primitive";
 		type: "string";
 		value: string;
+		position: Position;
+	}
+
+	export interface ArrayPrimitiveExpression {
+		operation: "primitive";
+		type: "array";
+		values: IntPrimitiveExpression[];
 		position: Position;
 	}
 

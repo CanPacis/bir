@@ -247,7 +247,7 @@ ReturnStatement -> "return" __ Expression {% d => ({ operation: "return_statemen
 
 BlockDeclarationStatement -> identifier BlockVerb:* __ "[" _ (ArgumentList _ {% id %}):? "]" _ BlockContent
 	{% d => ({ operation: "block_declaration", name: d[0], verbs: d[1], arguments: d[5], body: d[8], position: d[0].position, implementing: false, initialized: false }) %}
-  | identifier _ "implements" _ identifier (__ "{" _ string _ "}" {% d => d[3] %}):?
+  | identifier _ "implements" _ identifier (__ "{" _ (string {% id %}| array {% id %}) _ "}" {% d => d[3] %}):?
   {% d => ({ operation: "block_declaration", name: d[0], implements: d[4], position: d[0].position, implementing: true, populate: d[5], initialized: false }) %}
 
 BlockVerb -> ":" Expression {% d => d[1] %}
@@ -340,6 +340,17 @@ CodeBlock -> "{" _ (Main _ {% id %}):* "}"
 Mutatable 
   -> VariableReference {% id %}
 
+NumberList 
+  -> number _ "," _ NumberList {% d => [d[0], ...d[4]] %}
+  | number {% d => [d[0]] %}
+
+array -> "[" (NumberList _ {% id %}):? "]" 
+  {% d => ({
+    operation: "primitive",
+    type: "array", 
+    values: d[1]?.flat(Number.POSITIVE_INFINITY) || [],
+    position: { line: d[0].line, col: d[0].col }
+  }) %}
 
 number -> %NumberLiteral {% d => ({ 
     operation: "primitive",

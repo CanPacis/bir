@@ -9,14 +9,14 @@ console:verb [value] {
     scope:push (index, value, 1)
     index++
     return 0
-  }elif verb == read {
-    return scope:read (index, 0, 1)
-  }elif verb == update {
+  } elif verb == read {
+    return scope:read (value, 0, 1)
+  } elif verb == update {
     index = value
     return -1
-  }elif verb == length {
+  } elif verb == length {
     return index
-  }elif verb == input {
+  } elif verb == input {
     let d = -1
     __implementor_interface__:input (1)
 
@@ -30,7 +30,7 @@ console:verb [value] {
     }
 
     return 0
-  }elif verb == output {
+  } elif verb == output {
 
     for index as i {
       __implementor_interface__:output (scope:read (i, 0, 2))

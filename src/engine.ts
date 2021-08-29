@@ -293,20 +293,41 @@ export default class BirEngine {
 				statement.body = supBlock.body;
 
 				if (statement.populate) {
-					let i = 0;
-					for (const value of statement.populate.value.split("")) {
-						statement.instance.push(
-							BirUtil.generateIdentifier(`value_${i}`),
-							BirUtil.generateInt(value.charCodeAt(0)),
-							"let"
-						);
-						i++;
-					}
+					switch (statement.populate.type) {
+						case "string":
+							var i = 0;
+							for (const value of statement.populate.value.split("")) {
+								statement.instance.push(
+									BirUtil.generateIdentifier(`value_${i}`),
+									BirUtil.generateInt(value.charCodeAt(0)),
+									"let"
+								);
+								i++;
+							}
 
-					let index = statement.instance.find("index");
+							var index = statement.instance.find("index");
 
-					if (index) {
-						index.value = statement.populate.value.length;
+							if (index) {
+								index.value = statement.populate.value.length;
+							}
+							break;
+						case "array":
+							var i = 0;
+							for (const primitive of statement.populate.values) {
+								statement.instance.push(
+									BirUtil.generateIdentifier(`value_${i}`),
+									BirUtil.generateInt(primitive.value),
+									"let"
+								);
+								i++;
+							}
+							
+							var index = statement.instance.find("index");
+
+							if (index) {
+								index.value = statement.populate.values.length;
+							}
+							break;
 					}
 				}
 

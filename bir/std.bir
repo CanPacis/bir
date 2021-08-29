@@ -19,3 +19,8 @@ scope:verb [key, value, supScope] {
     return -1
   }
 }
+
+print [message] {
+  __implementor_interface__:output (message, 1)
+  return __implementor_interface__:output (done)
+}

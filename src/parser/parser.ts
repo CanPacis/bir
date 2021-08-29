@@ -269,7 +269,9 @@ const grammar: Grammar = {
     {"name": "BlockDeclarationStatement$ebnf$2", "symbols": ["BlockDeclarationStatement$ebnf$2$subexpression$1"], "postprocess": id},
     {"name": "BlockDeclarationStatement$ebnf$2", "symbols": [], "postprocess": () => null},
     {"name": "BlockDeclarationStatement", "symbols": ["identifier", "BlockDeclarationStatement$ebnf$1", "__", {"literal":"["}, "_", "BlockDeclarationStatement$ebnf$2", {"literal":"]"}, "_", "BlockContent"], "postprocess": d => ({ operation: "block_declaration", name: d[0], verbs: d[1], arguments: d[5], body: d[8], position: d[0].position, implementing: false, initialized: false })},
-    {"name": "BlockDeclarationStatement$ebnf$3$subexpression$1", "symbols": ["__", {"literal":"{"}, "_", "string", "_", {"literal":"}"}], "postprocess": d => d[3]},
+    {"name": "BlockDeclarationStatement$ebnf$3$subexpression$1$subexpression$1", "symbols": ["string"], "postprocess": id},
+    {"name": "BlockDeclarationStatement$ebnf$3$subexpression$1$subexpression$1", "symbols": ["array"], "postprocess": id},
+    {"name": "BlockDeclarationStatement$ebnf$3$subexpression$1", "symbols": ["__", {"literal":"{"}, "_", "BlockDeclarationStatement$ebnf$3$subexpression$1$subexpression$1", "_", {"literal":"}"}], "postprocess": d => d[3]},
     {"name": "BlockDeclarationStatement$ebnf$3", "symbols": ["BlockDeclarationStatement$ebnf$3$subexpression$1"], "postprocess": id},
     {"name": "BlockDeclarationStatement$ebnf$3", "symbols": [], "postprocess": () => null},
     {"name": "BlockDeclarationStatement", "symbols": ["identifier", "_", {"literal":"implements"}, "_", "identifier", "BlockDeclarationStatement$ebnf$3"], "postprocess": d => ({ operation: "block_declaration", name: d[0], implements: d[4], position: d[0].position, implementing: true, populate: d[5], initialized: false })},
@@ -340,6 +342,17 @@ const grammar: Grammar = {
     {"name": "CodeBlock$ebnf$1", "symbols": ["CodeBlock$ebnf$1", "CodeBlock$ebnf$1$subexpression$1"], "postprocess": (d) => d[0].concat([d[1]])},
     {"name": "CodeBlock", "symbols": [{"literal":"{"}, "_", "CodeBlock$ebnf$1", {"literal":"}"}], "postprocess": d => d[2]},
     {"name": "Mutatable", "symbols": ["VariableReference"], "postprocess": id},
+    {"name": "NumberList", "symbols": ["number", "_", {"literal":","}, "_", "NumberList"], "postprocess": d => [d[0], ...d[4]]},
+    {"name": "NumberList", "symbols": ["number"], "postprocess": d => [d[0]]},
+    {"name": "array$ebnf$1$subexpression$1", "symbols": ["NumberList", "_"], "postprocess": id},
+    {"name": "array$ebnf$1", "symbols": ["array$ebnf$1$subexpression$1"], "postprocess": id},
+    {"name": "array$ebnf$1", "symbols": [], "postprocess": () => null},
+    {"name": "array", "symbols": [{"literal":"["}, "array$ebnf$1", {"literal":"]"}], "postprocess":  d => ({
+          operation: "primitive",
+          type: "array", 
+          values: d[1]?.flat(Number.POSITIVE_INFINITY) || [],
+          position: { line: d[0].line, col: d[0].col }
+        }) },
     {"name": "number", "symbols": [(lexer.has("NumberLiteral") ? {type: "NumberLiteral"} : NumberLiteral)], "postprocess":  d => ({ 
           operation: "primitive",
           value: parseInt(d[0].value, 10),
