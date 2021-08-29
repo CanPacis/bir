@@ -1,20 +1,9 @@
-add [a, b] {
-  init {
-    let index = 4
-  }
+use "std"
+use "console"
 
-  index++
-  return a + b + index
-}
+message implements console {"Hello"}
 
-let c = add (2, 5)
-let d = add (2, 5)
-let e = add (2, 5)
-let f = add (2, 5)
+message:update (4)
+message:write (20)
 
-toplam implements add
-
-let g = toplam (10, 20)
-let h = toplam (10, 20)
-
-implementor_engine_interface ()
+let l = message:length (0)

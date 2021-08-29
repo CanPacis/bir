@@ -1,0 +1,37 @@
+use "std"
+
+stack:verb [valindex] {
+  init {
+		let index = 0
+	}
+
+	scope:push (10, 100)
+	
+	return ali
+
+	switch verb {
+		case push {
+			index++
+			scope:push (index, valindex)
+			return value
+		}
+		case read {
+			return scope:read (valindex)
+		}
+		case pop {
+			let value = scope:read (valindex)
+			scope:delete (valindex)
+			index--
+			return value
+		}
+		case length {
+			return index
+		}
+		case dump {
+			let i = 0
+			return 0
+		}
+	}
+}
+
+let v = stack:push (0)

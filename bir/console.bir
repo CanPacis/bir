@@ -1,5 +1,21 @@
-console:verb [] {
+use "std"
+
+console:verb [value] {
   init {
     let index = 0
+  }
+
+  if verb == write {
+    index++
+    return scope:push (index, value, 1)
+  }elif verb == read {
+    return scope:read (index, 0, 1)
+  }elif verb == update {
+    index = value
+    return -1
+  }elif verb == length {
+    return index + 1
+  }else {
+    return -1
   }
 }

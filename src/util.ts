@@ -1,4 +1,5 @@
 import Bir from "./ast.ts";
+import BirEngine from "./engine.ts";
 import Scope from "./scope.ts";
 
 namespace BirUtil {
@@ -21,7 +22,7 @@ namespace BirUtil {
 
 	export function generateFunction(
 		name: string,
-		body: (...args: Bir.IntPrimitiveExpression[]) => Bir.IntPrimitiveExpression
+		body: (engine: BirEngine,verbs: Bir.IntPrimitiveExpression[], args: Bir.IntPrimitiveExpression[]) => Bir.IntPrimitiveExpression
 	): Bir.NativeBlockDeclarationStatement {
 		return {
 			operation: "native_block_declaration",
@@ -35,6 +36,7 @@ namespace BirUtil {
 			initialized: false,
 			instance: new Scope([]),
 			superInstance: new Scope([]),
+			foreign: false,
 		};
 	}
 

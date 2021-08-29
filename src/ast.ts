@@ -2,7 +2,7 @@ import Scope from "./scope.ts";
 
 namespace Bir {
 	export interface Program {
-		imports: [];
+		imports: UseStatement[];
 		program: Main[];
 	}
 
@@ -43,8 +43,10 @@ namespace Bir {
 		implementing: boolean;
 		implements: Identifier;
 		initialized: boolean
+		populate?: StringPrimitiveExpression
 		instance: Scope
 		superInstance: Scope
+		foreign: boolean
 	}
 
 	export interface NativeBlockDeclarationStatement {
@@ -52,13 +54,14 @@ namespace Bir {
 		name: Identifier;
 		verbs: Identifier[];
 		arguments: Identifier[];
-		body: (...args: IntPrimitiveExpression[]) => IntPrimitiveExpression;
+		body: (engine: any, verbs: IntPrimitiveExpression[], args: IntPrimitiveExpression[]) => IntPrimitiveExpression;
 		position: Position;
 		implementing: boolean;
 		implements: Identifier;
 		initialized: boolean
 		instance: Scope
 		superInstance: Scope
+		foreign: boolean
 	}
 
 	export interface BlockBody {

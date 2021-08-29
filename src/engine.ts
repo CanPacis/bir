@@ -1,10 +1,10 @@
 import { BirParser } from "./parser/parser.ts";
 import Bir from "./ast.ts";
-import { parse } from "https://deno.land/std@0.106.0/path/mod.ts";
+import { parse, join } from "https://deno.land/std@0.106.0/path/mod.ts";
 import BirUtil from "./util.ts";
 import Scope from "./scope.ts";
 import BirError, { ErrorReport } from "./error.ts";
-import Implementor from "../bir/implementor.bir.ts"
+import Implementor from "./implementor/implementor.ts";
 
 export default class BirEngine {
 	callstack: BirUtil.Callstack[];
@@ -14,7 +14,8 @@ export default class BirEngine {
 	content: string;
 	parsed: Bir.Program;
 	errorReport: ErrorReport;
-	maximumCallstackSize;
+	maximumCallstackSize: number;
+	standardPath: string;
 
 	constructor(public path: string) {
 		this.maximumCallstackSize = 8000;
@@ -23,6 +24,7 @@ export default class BirEngine {
 		this.filename = "";
 		this.directory = "";
 		this.content = "";
+		this.standardPath = join(Deno.cwd(), "bir");
 		this.errorReport = this;
 		this.parsed = { imports: [], program: [] };
 	}
@@ -38,13 +40,43 @@ export default class BirEngine {
 		this.content = decoder.decode(await Deno.readFile(this.path));
 		this.parsed = parser.parse(this.content);
 		this.callstack = [{ name: "main", stack: this.parsed.program }];
-		this.currentScope.addBlock(Implementor.EngineInterface)
+		this.currentScope.addBlock(Implementor.Interface);
 		this.errorReport = {
 			filename: this.filename,
 			path: this.path,
 			callstack: this.callstack,
 			content: this.content,
 		};
+
+		for await (const use of this.parsed.imports) {
+			let dir = Deno.readDir(this.standardPath);
+			let exists = false;
+			let target;
+			for await (const file of dir) {
+				let name = parse(file.name).name;
+				if (file.isFile && name === use.source.value) {
+					exists = true;
+					target = join(this.standardPath, file.name);
+					break;
+				}
+			}
+
+			if (exists) {
+				let useEngine = new BirEngine(target as string);
+				await useEngine.init();
+				await useEngine.run();
+				let parentScope = useEngine.currentScope;
+				parentScope.immutable = true;
+				parentScope.foreign = true;
+				this.currentScope.parents.push(parentScope);
+			} else {
+				new BirError(
+					this,
+					`Cannot find use library '${use.source.value}'`,
+					use.position
+				);
+			}
+		}
 	}
 
 	get currentCallstack(): BirUtil.Callstack {
@@ -60,7 +92,7 @@ export default class BirEngine {
 	}
 
 	async resolveCallstack(
-		stack: BirUtil.Callstack
+		stack: BirUtil.Callstack,
 	): Promise<Bir.IntPrimitiveExpression> {
 		let value = BirUtil.generateInt(0);
 
@@ -70,8 +102,8 @@ export default class BirEngine {
 					await this.resolveVariableDeclarationStatement(statement);
 					break;
 				case "return_statement":
-					this.callstack.pop();
 					value = await this.resolveExpression(statement.expression);
+					this.callstack.pop();
 					return value;
 				case "block_declaration":
 					await this.resolveBlockDeclaration(statement);
@@ -85,19 +117,81 @@ export default class BirEngine {
 					await this.resolveQuantityModifier(statement);
 					break;
 				case "assign_statement":
-					await this.resolveassignStatement(statement);
+					await this.resolveAssignStatement(statement);
 					break;
 				case "block_call":
 					await this.resolveBlockCall(statement);
 					break;
+				case "for_statement":
+					await this.resolveForStatement(statement);
+					break;
+				case "if_statement":
+					value = await  this.resolveIfStatement(statement);
+					this.callstack.pop();
+					return value
 				default:
 					break;
 			}
 		}
 
 		this.callstack.pop();
-
 		return value;
+	}
+
+	async resolveIfStatement(statement: Bir.IfStatement): Promise<Bir.IntPrimitiveExpression> {
+		let mainBlock = await this.resolveIfBlock(statement.condition);
+
+		let runBlock = async (block: Bir.Main[]) => {
+			this.callstack.push({ name: "anonymous-if", stack: block });
+			return await this.resolveCallstack(this.currentCallstack);
+		};
+
+		if (mainBlock.value === 1) {
+			return await runBlock(statement.body);
+		} else {
+			if (statement.elifs) {
+				let selectedElif = null;
+				for await (const elif of statement.elifs) {
+					let elifBlock = await this.resolveIfBlock(elif.condition);
+					if (elifBlock.value === 1) {
+						selectedElif = elif;
+						break;
+					}
+				}
+
+				if (selectedElif) {
+					return await runBlock(selectedElif.body);
+				} else {
+					if (statement.else) {
+						return await runBlock(statement.else);
+					}
+				}
+			}
+		}
+
+		return BirUtil.generateInt(0)
+	}
+
+	async resolveIfBlock(condition: Bir.Expression) {
+		return await this.resolveExpression(condition);
+	}
+
+	async resolveForStatement(statement: Bir.ForStatement): Promise<void> {
+		let iterator = await this.resolveExpression(statement.statement);
+
+		for (let i = 0; i < iterator.value; i++) {
+			let scope = new Scope([this.currentScope]);
+			scope.push(
+				BirUtil.generateIdentifier(statement.placeholder),
+				BirUtil.generateInt(i),
+				"const"
+			);
+			this.scopestack.push(scope);
+
+			this.callstack.push({ name: "anonymous-for", stack: statement.body });
+			await this.resolveCallstack(this.currentCallstack);
+			this.scopestack.pop();
+		}
 	}
 
 	async resolveVariableDeclarationStatement(
@@ -122,6 +216,23 @@ export default class BirEngine {
 		statement: Bir.BlockDeclarationStatement
 	): Promise<void> {
 		if (!statement.implementing) {
+			if (statement.body.init) {
+				let instance = new Scope([]);
+				let initScope = new Scope([this.currentScope]);
+				this.scopestack.push(initScope);
+				this.callstack.push({
+					name: `${statement.name.value}:init`,
+					stack: JSON.parse(JSON.stringify(statement.body.init)),
+				});
+				await this.resolveCallstack(this.currentCallstack);
+				let lastScope = this.scopestack.pop();
+				if (lastScope) {
+					instance = lastScope;
+				}
+				statement.instance = instance;
+				statement.initialized = true;
+			}
+
 			if (this.currentScope.findBlock(statement.name.value) === undefined) {
 				this.currentScope.addBlock(statement);
 			} else {
@@ -152,12 +263,25 @@ export default class BirEngine {
 					if (lastScope) {
 						instance = lastScope;
 					}
-					copy.superInstance = instance;
+					statement.instance = instance;
+					statement.initialized = true;
 				}
 
 				statement.arguments = supBlock.arguments;
 				statement.verbs = supBlock.verbs;
 				statement.body = supBlock.body;
+
+				if (statement.populate) {
+					let i = 0;
+					for (const value of statement.populate.value.split("")) {
+						statement.instance.push(
+							BirUtil.generateIdentifier(`value_${i}`),
+							BirUtil.generateInt(value.charCodeAt(0)),
+							"let"
+						);
+						i++;
+					}
+				}
 
 				if (this.currentScope.findBlock(statement.name.value) === undefined) {
 					this.currentScope.addBlock(statement);
@@ -192,15 +316,22 @@ export default class BirEngine {
 		}
 	}
 
-	async resolveassignStatement(statement: Bir.AssignStatement): Promise<void> {
+	async resolveAssignStatement(statement: Bir.AssignStatement): Promise<void> {
 		let right = await this.resolveExpression(statement.right);
 		let result = await this.currentScope.update(statement.left.value, right);
+		console.log(result)
 
 		if (this.currentScope.find(statement.left.value)) {
-			if (!result) {
+			if (result === 1) {
 				new BirError(
 					this.errorReport,
-					`Could not reassign to const variable ${statement.left.value}`,
+					`Could not reassign to const variable '${statement.left.value}'`,
+					statement.position
+				);
+			} else if (result === 2) {
+				new BirError(
+					this.errorReport,
+					`Could not reassign in immutable scope`,
 					statement.position
 				);
 			}
@@ -216,39 +347,66 @@ export default class BirEngine {
 	async resolveQuantityModifier(
 		statement: Bir.QuantityModifierStatement
 	): Promise<Bir.IntPrimitiveExpression> {
+		let newValue;
 		let reference = await this.resolveExpression(statement.statement);
 
 		switch (statement.type) {
 			case "increment":
-				reference.value++;
-				return reference;
+				newValue = reference.value + 1;
+				break;
 			case "decrement":
-				reference.value--;
-				return reference;
+				newValue = reference.value - 1;
+				break;
 			case "add":
 				var right = await this.resolveExpression(
 					statement.right as Bir.Expression
 				);
-				reference.value += right.value;
-				return reference;
+				newValue = reference.value + right.value;
+				break;
 			case "subtract":
 				var right = await this.resolveExpression(
 					statement.right as Bir.Expression
 				);
-				reference.value -= right.value;
-				return reference;
+				newValue = reference.value - right.value;
+				break;
 			case "multiply":
 				var right = await this.resolveExpression(
 					statement.right as Bir.Expression
 				);
-				reference.value *= right.value;
-				return reference;
+				newValue = reference.value * right.value;
+				break;
 			case "divide":
 				var right = await this.resolveExpression(
 					statement.right as Bir.Expression
 				);
-				reference.value /= right.value;
-				return reference;
+				newValue = reference.value / right.value;
+				break;
+		}
+
+		if (statement.statement.operation === "reference") {
+			let result = await this.currentScope.update(
+				statement.statement.value,
+				BirUtil.generateInt(newValue)
+			);
+
+			if (result === 1) {
+				new BirError(
+					this.errorReport,
+					`Could not reassign to const variable '${statement.statement.value}'`,
+					statement.position
+				);
+			} else if (result === 2) {
+				new BirError(
+					this.errorReport,
+					`Could not reassign in immutable scope`,
+					statement.position
+				);
+			}
+
+			return BirUtil.generateInt(0);
+		} else {
+			reference.value = newValue;
+			return reference;
 		}
 	}
 
@@ -290,7 +448,7 @@ export default class BirEngine {
 				if (block.operation === "block_declaration") {
 					let errors = [];
 
-					for (let i = 0; i < block.arguments.length; i++) {
+					for (let i = 0; i < block.arguments?.length; i++) {
 						let expected = block.arguments[i];
 						let given = expression.arguments[i];
 
@@ -298,6 +456,15 @@ export default class BirEngine {
 							errors.push(
 								`Expected a parameter for argument '${expected.value}'`
 							);
+						}
+					}
+
+					for (let i = 0; i < block.verbs.length; i++) {
+						let expected = block.verbs[i];
+						let given = expression.verbs[i];
+
+						if (!given) {
+							errors.push(`Expected a parameter for verb '${expected.value}'`);
 						}
 					}
 
@@ -309,35 +476,28 @@ export default class BirEngine {
 						);
 					}
 
+					let scope = new Scope([this.currentScope]);
 					if (block.body.init) {
-						if (!block.initialized) {
-							let instance = new Scope([]);
-							let initScope = new Scope([this.currentScope]);
-							this.scopestack.push(initScope);
-							this.callstack.push({
-								name: `${block.name.value}:init`,
-								stack: JSON.parse(JSON.stringify(block.body.init)),
-							});
-							await this.resolveCallstack(this.currentCallstack);
-							let lastScope = this.scopestack.pop();
-							if (lastScope) {
-								instance = lastScope;
-							}
-							await this.currentScope.flagBlockAsInitialized(
-								block.name.value,
-								instance
+						scope.parents.splice(0, 0, block.instance);
+					}
+
+					if (block.arguments) {
+						let i = 0;
+						for await (let expected of block.arguments) {
+							let given = await this.resolveExpression(expression.arguments[i]);
+
+							scope.push(
+								BirUtil.generateIdentifier(expected.value),
+								given,
+								"let"
 							);
+							i++;
 						}
 					}
 
-					let scope = new Scope([block.instance, this.currentScope]);
-					if (block.superInstance) {
-						scope.parents.splice(1, 0, block.superInstance);
-					}
-
 					let i = 0;
-					for await (let expected of block.arguments) {
-						let given = await this.resolveExpression(expression.arguments[i]);
+					for await (let expected of block.verbs) {
+						let given = await this.resolveExpression(expression.verbs[i]);
 
 						scope.push(
 							BirUtil.generateIdentifier(expected.value),
@@ -356,7 +516,18 @@ export default class BirEngine {
 					this.scopestack.pop();
 					return result;
 				} else {
-					return block.body();
+					let vs: Bir.IntPrimitiveExpression[] = [],
+						as: Bir.IntPrimitiveExpression[] = [];
+
+					for await (const v of expression.verbs) {
+						vs.push(await this.resolveExpression(v));
+					}
+
+					for await (const a of expression.arguments) {
+						as.push(await this.resolveExpression(a));
+					}
+
+					return block.body(this, vs, as);
 				}
 			} else {
 				new BirError(
