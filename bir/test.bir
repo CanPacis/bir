@@ -1,9 +1,0 @@
-use "std"
-use "console"
-
-message implements console {"Hello"}
-
-message:update (4)
-message:write (20)
-
-let l = message:length (0)

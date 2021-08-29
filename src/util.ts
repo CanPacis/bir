@@ -22,9 +22,11 @@ namespace BirUtil {
 
 	export function generateFunction(
 		name: string,
-		body: (engine: BirEngine,verbs: Bir.IntPrimitiveExpression[], args: Bir.IntPrimitiveExpression[]) => Bir.IntPrimitiveExpression
+		engine: BirEngine,
+		body: (engine: BirEngine,verbs: Bir.IntPrimitiveExpression[], args: Bir.IntPrimitiveExpression[]) => Promise<Bir.IntPrimitiveExpression>
 	): Bir.NativeBlockDeclarationStatement {
 		return {
+			owner: engine,
 			operation: "native_block_declaration",
 			name: generateIdentifier(name),
 			verbs: [],

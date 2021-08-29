@@ -40,7 +40,7 @@ export default class BirEngine {
 		this.content = decoder.decode(await Deno.readFile(this.path));
 		this.parsed = parser.parse(this.content);
 		this.callstack = [{ name: "main", stack: this.parsed.program }];
-		this.currentScope.addBlock(Implementor.Interface);
+		this.currentScope.addBlock(Implementor.Interface(this));
 		this.errorReport = {
 			filename: this.filename,
 			path: this.path,
@@ -92,7 +92,7 @@ export default class BirEngine {
 	}
 
 	async resolveCallstack(
-		stack: BirUtil.Callstack,
+		stack: BirUtil.Callstack
 	): Promise<Bir.IntPrimitiveExpression> {
 		let value = BirUtil.generateInt(0);
 
@@ -125,10 +125,14 @@ export default class BirEngine {
 				case "for_statement":
 					await this.resolveForStatement(statement);
 					break;
-				case "if_statement":
-					value = await  this.resolveIfStatement(statement);
+				case "while_statement":
+					await this.resolveWhileStatement(statement);
 					this.callstack.pop();
-					return value
+					return value;
+				case "if_statement":
+					value = await this.resolveIfStatement(statement);
+					this.callstack.pop();
+					return value;
 				default:
 					break;
 			}
@@ -138,12 +142,27 @@ export default class BirEngine {
 		return value;
 	}
 
-	async resolveIfStatement(statement: Bir.IfStatement): Promise<Bir.IntPrimitiveExpression> {
+	async resolveWhileStatement(statement: Bir.WhileStatement): Promise<void> {
+		let condition = await this.resolveExpression(statement.statement);
+
+		while (condition.value === 1) {
+			this.callstack.push({ name: "anonymous-while", stack: statement.body });
+			await this.resolveCallstack(this.currentCallstack);
+			condition = await this.resolveExpression(statement.statement);
+		}
+	}
+
+	async resolveIfStatement(
+		statement: Bir.IfStatement
+	): Promise<Bir.IntPrimitiveExpression> {
 		let mainBlock = await this.resolveIfBlock(statement.condition);
 
 		let runBlock = async (block: Bir.Main[]) => {
+			// this.scopestack.push(new Scope([this.currentScope]));
 			this.callstack.push({ name: "anonymous-if", stack: block });
-			return await this.resolveCallstack(this.currentCallstack);
+			let result = await this.resolveCallstack(this.currentCallstack);
+			// this.scopestack.pop();
+			return result;
 		};
 
 		if (mainBlock.value === 1) {
@@ -169,7 +188,7 @@ export default class BirEngine {
 			}
 		}
 
-		return BirUtil.generateInt(0)
+		return BirUtil.generateInt(0);
 	}
 
 	async resolveIfBlock(condition: Bir.Expression) {
@@ -215,6 +234,7 @@ export default class BirEngine {
 	async resolveBlockDeclaration(
 		statement: Bir.BlockDeclarationStatement
 	): Promise<void> {
+		statement.owner = this;
 		if (!statement.implementing) {
 			if (statement.body.init) {
 				let instance = new Scope([]);
@@ -233,7 +253,9 @@ export default class BirEngine {
 				statement.initialized = true;
 			}
 
-			if (this.currentScope.findBlock(statement.name.value) === undefined) {
+			if (
+				this.currentScope.findBlock(statement.name.value).block === undefined
+			) {
 				this.currentScope.addBlock(statement);
 			} else {
 				new BirError(
@@ -243,9 +265,8 @@ export default class BirEngine {
 				);
 			}
 		} else {
-			let supBlock = this.currentScope.findBlock(
-				statement.implements.value
-			) as Bir.BlockDeclarationStatement;
+			let supBlock = this.currentScope.findBlock(statement.implements.value)
+				.block as Bir.BlockDeclarationStatement;
 
 			if (supBlock) {
 				let copy: Bir.BlockDeclarationStatement = { ...supBlock };
@@ -281,9 +302,17 @@ export default class BirEngine {
 						);
 						i++;
 					}
+
+					let index = statement.instance.find("index");
+
+					if (index) {
+						index.value = statement.populate.value.length;
+					}
 				}
 
-				if (this.currentScope.findBlock(statement.name.value) === undefined) {
+				if (
+					this.currentScope.findBlock(statement.name.value).block === undefined
+				) {
 					this.currentScope.addBlock(statement);
 				} else {
 					new BirError(
@@ -305,7 +334,7 @@ export default class BirEngine {
 	async resolveNativeBlockDeclaration(
 		statement: Bir.NativeBlockDeclarationStatement
 	): Promise<void> {
-		if (this.currentScope.findBlock(statement.name.value) === undefined) {
+		if (this.currentScope.findBlock(statement.name.value).block === undefined) {
 			this.currentScope.addBlock(statement);
 		} else {
 			new BirError(
@@ -319,7 +348,6 @@ export default class BirEngine {
 	async resolveAssignStatement(statement: Bir.AssignStatement): Promise<void> {
 		let right = await this.resolveExpression(statement.right);
 		let result = await this.currentScope.update(statement.left.value, right);
-		console.log(result)
 
 		if (this.currentScope.find(statement.left.value)) {
 			if (result === 1) {
@@ -439,52 +467,103 @@ export default class BirEngine {
 	}
 
 	async resolveBlockCall(
-		expression: Bir.BlockCallExpression
+		expression: Bir.BlockCallExpression,
+		incoming: BirEngine | null = null
 	): Promise<Bir.IntPrimitiveExpression> {
 		if (this.callstack.length < this.maximumCallstackSize) {
-			let block = this.currentScope.findBlock(expression.name.value);
+			let { block, foreign } = this.currentScope.findBlock(
+				expression.name.value
+			);
 
 			if (block) {
 				if (block.operation === "block_declaration") {
-					let errors = [];
-
-					for (let i = 0; i < block.arguments?.length; i++) {
-						let expected = block.arguments[i];
-						let given = expression.arguments[i];
-
-						if (!given) {
-							errors.push(
-								`Expected a parameter for argument '${expected.value}'`
-							);
-						}
-					}
-
-					for (let i = 0; i < block.verbs.length; i++) {
-						let expected = block.verbs[i];
-						let given = expression.verbs[i];
-
-						if (!given) {
-							errors.push(`Expected a parameter for verb '${expected.value}'`);
-						}
-					}
-
-					if (errors.length > 0) {
-						new BirError(
-							this.errorReport,
-							errors.join("\n"),
-							expression.position
+					if (foreign) {
+						let scopestack = block.owner.scopestack;
+						block.owner.currentScope.foreign = false;
+						block.owner.callstack = this.callstack;
+						block.owner.scopestack = block.owner.scopestack.concat(
+							this.scopestack
 						);
-					}
+						let result = await block.owner.resolveBlockCall(expression, this);
+						block.owner.callstack = [];
+						block.owner.scopestack = scopestack;
+						block.owner.currentScope.foreign = true;
+						return result;
+					} else {
+						let errors = [];
 
-					let scope = new Scope([this.currentScope]);
-					if (block.body.init) {
-						scope.parents.splice(0, 0, block.instance);
-					}
+						for (let i = 0; i < block.arguments?.length; i++) {
+							let expected = block.arguments[i];
+							let given = expression.arguments[i];
 
-					if (block.arguments) {
+							if (!given) {
+								errors.push(
+									`Expected a parameter for argument '${expected.value}'`
+								);
+							}
+						}
+
+						for (let i = 0; i < block.verbs.length; i++) {
+							let expected = block.verbs[i];
+							let given = expression.verbs[i];
+
+							if (!given) {
+								errors.push(
+									`Expected a parameter for verb '${expected.value}'`
+								);
+							}
+						}
+
+						if (errors.length > 0) {
+							if (incoming) {
+								new BirError(
+									incoming.errorReport,
+									errors.join("\n"),
+									expression.position
+								);
+							} else {
+								new BirError(
+									this.errorReport,
+									errors.join("\n"),
+									expression.position
+								);
+							}
+						}
+
+						let scope = new Scope([this.currentScope]);
+						if (block.body.init) {
+							scope.parents.splice(0, 0, block.instance);
+						}
+
+						if (block.arguments) {
+							let i = 0;
+							for await (let expected of block.arguments) {
+								let given;
+								if (incoming) {
+									given = await incoming.resolveExpression(
+										expression.arguments[i]
+									);
+								} else {
+									given = await this.resolveExpression(expression.arguments[i]);
+								}
+
+								scope.push(
+									BirUtil.generateIdentifier(expected.value),
+									given,
+									"let"
+								);
+								i++;
+							}
+						}
+
 						let i = 0;
-						for await (let expected of block.arguments) {
-							let given = await this.resolveExpression(expression.arguments[i]);
+						for await (let expected of block.verbs) {
+							let given;
+							if (incoming) {
+								given = await incoming.resolveExpression(expression.verbs[i]);
+							} else {
+								given = await this.resolveExpression(expression.verbs[i]);
+							}
 
 							scope.push(
 								BirUtil.generateIdentifier(expected.value),
@@ -493,28 +572,16 @@ export default class BirEngine {
 							);
 							i++;
 						}
+
+						this.scopestack.push(scope);
+						this.callstack.push({
+							name: block.name.value,
+							stack: JSON.parse(JSON.stringify(block.body.program)),
+						});
+						let result = await this.resolveCallstack(this.currentCallstack);
+						this.scopestack.pop();
+						return result;
 					}
-
-					let i = 0;
-					for await (let expected of block.verbs) {
-						let given = await this.resolveExpression(expression.verbs[i]);
-
-						scope.push(
-							BirUtil.generateIdentifier(expected.value),
-							given,
-							"let"
-						);
-						i++;
-					}
-
-					this.scopestack.push(scope);
-					this.callstack.push({
-						name: block.name.value,
-						stack: JSON.parse(JSON.stringify(block.body.program)),
-					});
-					let result = await this.resolveCallstack(this.currentCallstack);
-					this.scopestack.pop();
-					return result;
 				} else {
 					let vs: Bir.IntPrimitiveExpression[] = [],
 						as: Bir.IntPrimitiveExpression[] = [];
@@ -527,7 +594,7 @@ export default class BirEngine {
 						as.push(await this.resolveExpression(a));
 					}
 
-					return block.body(this, vs, as);
+					return await block.body(this, vs, as);
 				}
 			} else {
 				new BirError(

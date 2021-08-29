@@ -1,9 +1,18 @@
 import Bir from "./ast.ts";
+import BirEngine from "./engine.ts";
 
 export enum UpdateReport {
 	Granted = 0,
 	DeniedConst = 1,
 	DeniedImmutable = 2,
+}
+
+export interface ScopeBlock {
+	block:
+		| Bir.BlockDeclarationStatement
+		| Bir.NativeBlockDeclarationStatement
+		| undefined;
+	foreign: boolean;
 }
 
 export default class Scope {
@@ -57,14 +66,14 @@ export default class Scope {
 		value: Bir.IntPrimitiveExpression
 	): Promise<UpdateReport> {
 		let i = this.frame.findIndex((d) => d.key.value === name);
-		
+
 		if (i < 0) {
 			let valid = 0;
 			for await (const parent of this.parents) {
 				let v = await parent.update(name, value);
 				if (v) valid = 0;
 			}
-			
+
 			return valid;
 		} else {
 			if (this.frame[i].kind === "const") {
@@ -88,24 +97,23 @@ export default class Scope {
 
 	findBlock(
 		name: string
-	):
-		| Bir.BlockDeclarationStatement
-		| Bir.NativeBlockDeclarationStatement
-		| undefined {
+	): ScopeBlock {
 		let value = this.blocks.find((b) => b.name.value === name);
+		let result: ScopeBlock = { block: value, foreign: false }
 
 		if (!value) {
 			for (const parent of this.parents) {
 				let supValue = parent.findBlock(name);
-				if (supValue) {
-					value = supValue;
+				if (supValue.block) {
+					result = supValue;
 					break;
 				}
 			}
 
-			return value;
+			return result
 		} else {
-			return value;
+			if (this.foreign) result.foreign = true
+			return result
 		}
 	}
 

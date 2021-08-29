@@ -6,6 +6,9 @@ const dump = 4206904
 const length = 4206905
 const write = 4206906
 const update = 4206907
+const input = 4206908
+const output = 4206909
+const done = 4206910
 
 scope:verb [key, value, supScope] {
 	if verb == push {

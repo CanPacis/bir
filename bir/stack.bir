@@ -1,37 +1,19 @@
 use "std"
 
-stack:verb [valindex] {
+stack:verb [value] {
   init {
 		let index = 0
 	}
 
-	scope:push (10, 100)
-	
-	return ali
+	if verb == push {
+    scope:push (index, value, 1)
+    index++
+    return 0
+  }elif verb == read {
+    return scope:read (value, 0, 1)
+  }elif verb == length {
+    return index
+  }
 
-	switch verb {
-		case push {
-			index++
-			scope:push (index, valindex)
-			return value
-		}
-		case read {
-			return scope:read (valindex)
-		}
-		case pop {
-			let value = scope:read (valindex)
-			scope:delete (valindex)
-			index--
-			return value
-		}
-		case length {
-			return index
-		}
-		case dump {
-			let i = 0
-			return 0
-		}
-	}
+	return 0
 }
-
-let v = stack:push (0)

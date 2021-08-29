@@ -1,0 +1,18 @@
+use "std"
+use "console"
+use "stack"
+
+my_array implements stack
+
+for 10 as i {
+  my_array:push (i + 48)
+  my_array:push (32)
+}
+
+output implements console
+
+for my_array:length (0) as i {
+  output:write (my_array:read (i))
+}
+
+output:output (0)

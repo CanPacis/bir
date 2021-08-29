@@ -1,3 +1,4 @@
+import BirEngine from "./engine.ts";
 import Scope from "./scope.ts";
 
 namespace Bir {
@@ -34,6 +35,7 @@ namespace Bir {
 	}
 
 	export interface BlockDeclarationStatement {
+		owner: BirEngine
 		operation: "block_declaration";
 		name: Identifier;
 		verbs: Identifier[];
@@ -46,15 +48,15 @@ namespace Bir {
 		populate?: StringPrimitiveExpression
 		instance: Scope
 		superInstance: Scope
-		foreign: boolean
 	}
 
 	export interface NativeBlockDeclarationStatement {
+		owner: BirEngine
 		operation: "native_block_declaration";
 		name: Identifier;
 		verbs: Identifier[];
 		arguments: Identifier[];
-		body: (engine: any, verbs: IntPrimitiveExpression[], args: IntPrimitiveExpression[]) => IntPrimitiveExpression;
+		body: (engine: any, verbs: IntPrimitiveExpression[], args: IntPrimitiveExpression[]) => Promise<IntPrimitiveExpression>;
 		position: Position;
 		implementing: boolean;
 		implements: Identifier;
