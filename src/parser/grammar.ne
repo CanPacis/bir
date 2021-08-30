@@ -54,7 +54,6 @@ const lexer = moo.compile({
   LeftBrackets: "[",
   RightBrackets: "]",
   Plus: "+",
-  Minus: "-",
   Multiplier: "*",
   QuestionMark: "?",
   Caret: "^",
@@ -76,7 +75,7 @@ const lexer = moo.compile({
   },
   Divider: "/",
   Identifier: {
-    match: /[a-zA-Z_][a-zA-Z_0-9]*/,
+    match: /-?[a-zA-Z_][a-zA-Z_0-9]*/,
     type: moo.keywords({
       Use: "use",
       Const: "const",
@@ -90,12 +89,15 @@ const lexer = moo.compile({
       Elif: "elif",
       Else: "else",
   		Switch: "switch",
+  		Default: "default",
   		For: "for",
   		While: "while",
   		As: "as",
-      Case: "case"
+      Case: "case",
+      Log: "log"
     })
-  }
+  },
+  Minus: "-"
 })
 
 function getCondition(condition: string) {
@@ -136,7 +138,7 @@ function arithmetic(type: any, data: any) {
     operation: "arithmetic", 
     type, 
     left: data[0], 
-    right: data[4], 
+    right: data[4] || { type: "int", value: 0, operation: "primitive", position: { col: 0, line: 0 } }, 
     position: data[0].position 
   }
 }
@@ -185,11 +187,13 @@ VariableDeclarationStatement -> ("const" {%id%} | "let" {%id%}) __ identifier _ 
 
 SwitchStatement -> "switch" __ Expression _ 
   "{" _ ("case" __ Expression _ CodeBlock _ 
-  {% d => ({ case: d[2], body: d[4] }) %}):* "}"
+  {% d => ({ case: d[2], body: d[4] }) %}):* ("default" _ CodeBlock _ 
+  {% d => ({ body: d[2] }) %}):? "}"
   {% d => ({ 
     operation: "switch_statement", 
     condition: d[2],
     cases: d[6],
+    default: d[7],
     position: position(d[0])
   }) %}
 
@@ -281,6 +285,7 @@ Exponent
   -> Caller _ "^" _ Exponent {% d => arithmetic("exponent", d) %}
   | Caller _ "'" _ Exponent {% d => arithmetic("root", d) %}
   | Caller _ "%" _ Exponent {% d => arithmetic("modulus", d) %}
+  | Caller _ "log" {% d => arithmetic("log10", d) %}
   | Caller {% id %}
 
 Caller 
@@ -322,6 +327,7 @@ VariableReference -> identifier
   {% d => ({ 
     operation: "reference", 
     value: d[0].value,
+    negative: d[0].negative,
     position: { line: d[0].position.line, col: d[0].position.col }
   }) %}
 
@@ -379,7 +385,7 @@ number -> %NumberLiteral {% d => ({
 
 string -> %StringLiteral {% d => ({ operation: "primitive", value: d[0].value,position: position(d[0]), type: "string" }) %}
 
-identifier -> %Identifier {% d => ({ operation: "identifier", value: d[0].value, position: { line: d[0].line, col: d[0].col } }) %}
+identifier -> %Identifier {% d => ({ negative: d[0].value[0] === "-", operation: "identifier", value: d[0].value[0] === "-" ? d[0].value.substr(1) : d[0].value, position: { line: d[0].line, col: d[0].col } }) %}
 
 _ -> [\s]:*     {% (d) =>  null %}
 __ -> [\s]:+     {% (d) =>  null %}

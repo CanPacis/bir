@@ -112,23 +112,23 @@ export default class BirEngine {
 					}
 					this.callstack.pop();
 					return value;
-					case "throw_statement":
-						value = await this.resolveExpression(statement.expression);
-						if (this.currentCallstack.name === "main") {
-							new BirError(
-								this.errorReport,
-								`Top level throw statements are not allowed`,
-								statement.position
-							);
-						}else {
-							this.callstack.pop();
-							new BirError(
-								this.errorReport,
-								`Bir process has thrown error with value '${value.value}'`,
-								statement.position
-							)
-						}
-						return value;
+				case "throw_statement":
+					value = await this.resolveExpression(statement.expression);
+					if (this.currentCallstack.name === "main") {
+						new BirError(
+							this.errorReport,
+							`Top level throw statements are not allowed`,
+							statement.position
+						);
+					} else {
+						this.callstack.pop();
+						new BirError(
+							this.errorReport,
+							`Bir process has thrown error with value '${value.value}'`,
+							statement.position
+						);
+					}
+					return value;
 				case "block_declaration":
 					await this.resolveBlockDeclaration(statement);
 					break;
@@ -187,6 +187,15 @@ export default class BirEngine {
 			this.callstack.push({ name: "anonymous-switch", stack: body });
 			let result = await this.resolveCallstack(this.currentCallstack);
 			return result;
+		} else {
+			if (statement.default) {
+				this.callstack.push({
+					name: "anonymous-switch",
+					stack: statement.default.body,
+				});
+				let result = await this.resolveCallstack(this.currentCallstack);
+				return result;
+			}
 		}
 
 		return BirUtil.generateInt(0);
@@ -281,6 +290,47 @@ export default class BirEngine {
 		}
 	}
 
+	async populateBlockStatement(statement: Bir.BlockDeclarationStatement) {
+		if (statement.populate) {
+			switch (statement.populate.type) {
+				case "string":
+					var i = 0;
+					for (const value of statement.populate.value.split("")) {
+						statement.instance.push(
+							BirUtil.generateIdentifier(`value_${i}`),
+							BirUtil.generateInt(value.charCodeAt(0)),
+							"let"
+						);
+						i++;
+					}
+
+					var index = statement.instance.find("index");
+
+					if (index) {
+						index.value = statement.populate.value.length;
+					}
+					break;
+				case "array":
+					var i = 0;
+					for (const primitive of statement.populate.values) {
+						statement.instance.push(
+							BirUtil.generateIdentifier(`value_${i}`),
+							BirUtil.generateInt(primitive.value),
+							"let"
+						);
+						i++;
+					}
+
+					var index = statement.instance.find("index");
+
+					if (index) {
+						index.value = statement.populate.values.length;
+					}
+					break;
+			}
+		}
+	}
+
 	async resolveBlockDeclaration(
 		statement: Bir.BlockDeclarationStatement
 	): Promise<void> {
@@ -291,7 +341,7 @@ export default class BirEngine {
 				let initScope = new Scope([this.currentScope]);
 				this.scopestack.push(initScope);
 				this.callstack.push({
-					name: `${statement.name.value}:init`,
+					name: `$${statement.name.value}`,
 					stack: JSON.parse(JSON.stringify(statement.body.init)),
 				});
 				await this.resolveCallstack(this.currentCallstack);
@@ -300,8 +350,10 @@ export default class BirEngine {
 					instance = lastScope;
 				}
 				statement.instance = instance;
-				statement.initialized = true;
+			} else {
+				statement.instance = new Scope([this.currentScope]);
 			}
+			statement.initialized = true;
 
 			if (
 				this.currentScope.findBlock(statement.name.value).block === undefined
@@ -315,13 +367,13 @@ export default class BirEngine {
 				);
 			}
 		} else {
-			let supBlock = this.currentScope.findBlock(statement.implements.value)
+			let superBlock = this.currentScope.findBlock(statement.implements.value)
 				.block as Bir.BlockDeclarationStatement;
 
-			if (supBlock) {
-				let copy: Bir.BlockDeclarationStatement = { ...supBlock };
+			if (superBlock) {
+				let copy: Bir.BlockDeclarationStatement = Object.assign(superBlock, {});
 
-				if (supBlock.body.init) {
+				if (copy.body.init) {
 					let instance = new Scope([]);
 					let initScope = new Scope([this.currentScope]);
 					this.scopestack.push(initScope);
@@ -335,47 +387,12 @@ export default class BirEngine {
 						instance = lastScope;
 					}
 					statement.instance = instance;
-					statement.initialized = true;
+				} else {
+					statement.instance = new Scope([this.currentScope]);
 				}
+				statement.initialized = true;
 
-				if (statement.populate) {
-					switch (statement.populate.type) {
-						case "string":
-							var i = 0;
-							for (const value of statement.populate.value.split("")) {
-								statement.instance.push(
-									BirUtil.generateIdentifier(`value_${i}`),
-									BirUtil.generateInt(value.charCodeAt(0)),
-									"let"
-								);
-								i++;
-							}
-
-							var index = statement.instance.find("index");
-
-							if (index) {
-								index.value = statement.populate.value.length;
-							}
-							break;
-						case "array":
-							var i = 0;
-							for (const primitive of statement.populate.values) {
-								statement.instance.push(
-									BirUtil.generateIdentifier(`value_${i}`),
-									BirUtil.generateInt(primitive.value),
-									"let"
-								);
-								i++;
-							}
-
-							var index = statement.instance.find("index");
-
-							if (index) {
-								index.value = statement.populate.values.length;
-							}
-							break;
-					}
-				}
+				await this.populateBlockStatement(statement);
 
 				if (
 					this.currentScope.findBlock(statement.name.value).block === undefined
@@ -521,6 +538,9 @@ export default class BirEngine {
 			case "reference":
 				let result = this.currentScope.find(expression.value);
 				if (result) {
+					if (expression.negative) {
+						result.value = Math.abs(result.value);
+					}
 					return result;
 				} else {
 					new BirError(
@@ -648,9 +668,10 @@ export default class BirEngine {
 				expression.name.value
 			);
 
-			
+			// console.log(expression.name.value)
+
 			if (block) {
-				let oldBlock
+				let oldBlock;
 				if (block.operation === "block_declaration") {
 					if (block.implementing) {
 						let f = this.currentScope.findBlock(block.implements.value);
@@ -667,18 +688,25 @@ export default class BirEngine {
 
 						let scope = new Scope([this.currentScope]);
 						if (block.body.init) {
-							if(oldBlock) {
+							if (oldBlock) {
 								scope.parents.splice(0, 0, oldBlock.instance);
-							}else {
+							} else {
 								scope.parents.splice(0, 0, block.instance);
 							}
 						}
 
-						await this.pushArgumentsAndVerbs(block, expression, incoming, scope);
+						await this.pushArgumentsAndVerbs(
+							block,
+							expression,
+							incoming,
+							scope
+						);
 
 						this.scopestack.push(scope);
 						this.callstack.push({
-							name: `$${oldBlock?.implementing ? oldBlock.name.value : block.name.value}`,
+							name: `$${
+								oldBlock?.implementing ? oldBlock.name.value : block.name.value
+							}`,
 							stack: JSON.parse(JSON.stringify(block.body.program)),
 						});
 						let result = await this.resolveCallstack(this.currentCallstack);
@@ -686,7 +714,7 @@ export default class BirEngine {
 						return result;
 					}
 				} else {
-					await this.resolveNativeBlockCall(block, expression);
+					return await this.resolveNativeBlockCall(block, expression);
 				}
 			} else {
 				new BirError(
@@ -694,6 +722,7 @@ export default class BirEngine {
 					`Could not find block '${expression.name.value}'`,
 					expression.position
 				);
+				return Deno.exit(1);
 			}
 		} else {
 			new BirError(
@@ -701,9 +730,10 @@ export default class BirEngine {
 				"Birlang script has overflown the maximum callstack size.",
 				expression.position
 			);
+			return Deno.exit(1);
 		}
 
-		return BirUtil.generateInt(0);
+		// return BirUtil.generateInt(100);
 	}
 
 	async resolveConditionExpression(
@@ -778,6 +808,9 @@ export default class BirEngine {
 				return BirUtil.generateInt(value);
 			case "root":
 				value = Math.pow(left.value, 1 / right.value);
+				return BirUtil.generateInt(value);
+			case "log10":
+				value = Math.ceil(Math.log10(left.value));
 				return BirUtil.generateInt(value);
 		}
 	}

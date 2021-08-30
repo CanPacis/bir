@@ -1,11 +1,4 @@
-d [] {
-  return 20
-}
+use "std"
+use "console"
 
-add [] {
-  throw d ()
-
-  return 0
-}
-
-add ()
+print (60)

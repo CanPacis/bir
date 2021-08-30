@@ -1,6 +1,54 @@
 use "std"
 use "scope"
 
+
+print [message] {
+  decoder implements uint16decoder
+  decoder:push (message)
+
+  for decoder:length (0) as i {
+    bir:output (decoder:read (i))
+  }
+
+  bir:output (done)
+}
+
+println [message] {
+  print (message)
+  bir:output (10)
+  return bir:output (done)
+}
+
+uint16decoder:verb [n] {
+  init {
+    let index = 0
+
+    for 10 as i {
+      scope:push (1000000 + i, i + 48)
+    }
+  }
+
+  switch verb {
+    case push {
+      for n log as i {
+        let value = {n / {10^i}} % 10
+        scope:push (n log - 1 - index, value)
+        index++
+      }
+    }
+    case read {
+      return scope:read(1000000 + scope:read(n, 0), 1)
+    }
+    case length {
+      return index
+    }
+    default {
+      throw unknown
+    }
+  }
+}
+
+
 console:verb [value] {
   init {
     let index = 0

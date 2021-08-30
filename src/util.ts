@@ -3,21 +3,31 @@ import BirEngine from "./engine.ts";
 import Scope from "./scope.ts";
 
 namespace BirUtil {
-	export function generateIdentifier(identifier: string): Bir.Identifier {
+	export function generateIdentifier(identifier: string, negative: boolean = false): Bir.Identifier {
 		return {
 			operation: "identifier",
 			value: identifier,
+			negative,
 			position: { line: 0, col: 0 },
 		};
 	}
 
 	export function generateInt(value: number): Bir.IntPrimitiveExpression {
-		return {
-			operation: "primitive",
-			value: parseInt(value as unknown as string),
-			type: "int",
-			position: { line: 0, col: 0 },
-		};
+		if(Number.isNaN(parseInt(value as unknown as string))) {
+			return {
+				operation: "primitive",
+				value: -1,
+				type: "int",
+				position: { line: 0, col: 0 },
+			};
+		}else {
+			return {
+				operation: "primitive",
+				value: parseInt(value as unknown as string),
+				type: "int",
+				position: { line: 0, col: 0 },
+			};
+		}
 	}
 
 	export function generateFunction(

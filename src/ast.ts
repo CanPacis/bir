@@ -36,7 +36,7 @@ namespace Bir {
 	}
 
 	export interface BlockDeclarationStatement {
-		owner: BirEngine
+		owner: BirEngine;
 		operation: "block_declaration";
 		name: Identifier;
 		verbs: Identifier[];
@@ -45,26 +45,30 @@ namespace Bir {
 		position: Position;
 		implementing: boolean;
 		implements: Identifier;
-		initialized: boolean
-		populate?: StringPrimitiveExpression | ArrayPrimitiveExpression
-		instance: Scope
-		superInstance: Scope
+		initialized: boolean;
+		populate?: StringPrimitiveExpression | ArrayPrimitiveExpression;
+		instance: Scope;
+		superInstance: Scope;
 	}
 
 	export interface NativeBlockDeclarationStatement {
-		owner: BirEngine
+		owner: BirEngine;
 		operation: "native_block_declaration";
 		name: Identifier;
 		verbs: Identifier[];
 		arguments: Identifier[];
-		body: (engine: any, verbs: IntPrimitiveExpression[], args: IntPrimitiveExpression[]) => Promise<IntPrimitiveExpression>;
+		body: (
+			engine: any,
+			verbs: IntPrimitiveExpression[],
+			args: IntPrimitiveExpression[]
+		) => Promise<IntPrimitiveExpression>;
 		position: Position;
 		implementing: boolean;
 		implements: Identifier;
-		initialized: boolean
-		instance: Scope
-		superInstance: Scope
-		foreign: boolean
+		initialized: boolean;
+		instance: Scope;
+		superInstance: Scope;
+		foreign: boolean;
 	}
 
 	export interface BlockBody {
@@ -84,6 +88,7 @@ namespace Bir {
 		operation: "switch_statement";
 		condition: Expression;
 		cases: SwitchCase[];
+		default?: SwitchCase;
 		position: Expression;
 	}
 
@@ -169,6 +174,7 @@ namespace Bir {
 
 	export interface ReferenceExpression {
 		operation: "reference";
+		negative: boolean;
 		value: string;
 		position: Position;
 	}
@@ -223,7 +229,8 @@ namespace Bir {
 		| "division"
 		| "exponent"
 		| "root"
-		| "modulus";
+		| "modulus"
+		| "log10";
 
 	export type ConditionType =
 		| "and"
@@ -253,6 +260,7 @@ namespace Bir {
 
 	export interface Identifier {
 		operation: "identifier";
+		negative: boolean;
 		value: string;
 		position: Position;
 	}

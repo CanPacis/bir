@@ -9,20 +9,11 @@ const update = 4206907
 const input = 4206908
 const output = 4206909
 const done = 4206910
+const unknown = 4206911
 
 const true = 1
 const false = 0
 
-const std_in = 4206911
-const std_out = 4206912
-
-print [message] {
-  bir:output (message, 1)
-  return bir:output (done)
-}
-
-println [message] {
-  bir:output (message, 1)
-  bir:output (10)
-  return bir:output (done)
+uint8block:verb [n] {
+  
 }

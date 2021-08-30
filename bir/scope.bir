@@ -1,11 +1,15 @@
 use "std"
 
-scope:verb [key, value, supScope] {
-	if verb == push {
-    return __implementor_interface__:push (key, value, supScope + 2)
-  }elif verb == read {
-    return __implementor_interface__:read (key, supScope + 2)
-  }else {
-    return -1
+scope:verb [index, value] {
+  switch verb {
+    case push {
+      return bir:push (index, value)
+    }
+    case read {
+      return bir:read (index)
+    }
+    default {
+      throw unknown
+    }
   }
 }

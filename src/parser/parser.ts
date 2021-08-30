@@ -67,7 +67,6 @@ const lexer = moo.compile({
   LeftBrackets: "[",
   RightBrackets: "]",
   Plus: "+",
-  Minus: "-",
   Multiplier: "*",
   QuestionMark: "?",
   Caret: "^",
@@ -89,7 +88,7 @@ const lexer = moo.compile({
   },
   Divider: "/",
   Identifier: {
-    match: /[a-zA-Z_][a-zA-Z_0-9]*/,
+    match: /-?[a-zA-Z_][a-zA-Z_0-9]*/,
     type: moo.keywords({
       Use: "use",
       Const: "const",
@@ -103,12 +102,15 @@ const lexer = moo.compile({
       Elif: "elif",
       Else: "else",
   		Switch: "switch",
+  		Default: "default",
   		For: "for",
   		While: "while",
   		As: "as",
-      Case: "case"
+      Case: "case",
+      Log: "log"
     })
-  }
+  },
+  Minus: "-"
 })
 
 function getCondition(condition: string) {
@@ -149,7 +151,7 @@ function arithmetic(type: any, data: any) {
     operation: "arithmetic", 
     type, 
     left: data[0], 
-    right: data[4], 
+    right: data[4] || { type: "int", value: 0, operation: "primitive", position: { col: 0, line: 0 } }, 
     position: data[0].position 
   }
 }
@@ -219,10 +221,14 @@ const grammar: Grammar = {
     {"name": "SwitchStatement$ebnf$1", "symbols": []},
     {"name": "SwitchStatement$ebnf$1$subexpression$1", "symbols": [{"literal":"case"}, "__", "Expression", "_", "CodeBlock", "_"], "postprocess": d => ({ case: d[2], body: d[4] })},
     {"name": "SwitchStatement$ebnf$1", "symbols": ["SwitchStatement$ebnf$1", "SwitchStatement$ebnf$1$subexpression$1"], "postprocess": (d) => d[0].concat([d[1]])},
-    {"name": "SwitchStatement", "symbols": [{"literal":"switch"}, "__", "Expression", "_", {"literal":"{"}, "_", "SwitchStatement$ebnf$1", {"literal":"}"}], "postprocess":  d => ({ 
+    {"name": "SwitchStatement$ebnf$2$subexpression$1", "symbols": [{"literal":"default"}, "_", "CodeBlock", "_"], "postprocess": d => ({ body: d[2] })},
+    {"name": "SwitchStatement$ebnf$2", "symbols": ["SwitchStatement$ebnf$2$subexpression$1"], "postprocess": id},
+    {"name": "SwitchStatement$ebnf$2", "symbols": [], "postprocess": () => null},
+    {"name": "SwitchStatement", "symbols": [{"literal":"switch"}, "__", "Expression", "_", {"literal":"{"}, "_", "SwitchStatement$ebnf$1", "SwitchStatement$ebnf$2", {"literal":"}"}], "postprocess":  d => ({ 
           operation: "switch_statement", 
           condition: d[2],
           cases: d[6],
+          default: d[7],
           position: position(d[0])
         }) },
     {"name": "ForStatement", "symbols": [{"literal":"for"}, "__", "Expression", "__", {"literal":"as"}, "__", "identifier", "_", "CodeBlock"], "postprocess":  d => ({ 
@@ -301,6 +307,7 @@ const grammar: Grammar = {
     {"name": "Exponent", "symbols": ["Caller", "_", {"literal":"^"}, "_", "Exponent"], "postprocess": d => arithmetic("exponent", d)},
     {"name": "Exponent", "symbols": ["Caller", "_", {"literal":"'"}, "_", "Exponent"], "postprocess": d => arithmetic("root", d)},
     {"name": "Exponent", "symbols": ["Caller", "_", {"literal":"%"}, "_", "Exponent"], "postprocess": d => arithmetic("modulus", d)},
+    {"name": "Exponent", "symbols": ["Caller", "_", {"literal":"log"}], "postprocess": d => arithmetic("log10", d)},
     {"name": "Exponent", "symbols": ["Caller"], "postprocess": id},
     {"name": "Caller", "symbols": ["BlockCall"], "postprocess": id},
     {"name": "Caller", "symbols": ["SubExpression"], "postprocess": id},
@@ -332,6 +339,7 @@ const grammar: Grammar = {
     {"name": "VariableReference", "symbols": ["identifier"], "postprocess":  d => ({ 
           operation: "reference", 
           value: d[0].value,
+          negative: d[0].negative,
           position: { line: d[0].position.line, col: d[0].position.col }
         }) },
     {"name": "Primitive", "symbols": ["number"], "postprocess": id},
@@ -381,7 +389,7 @@ const grammar: Grammar = {
           position: position(d[0])
         })  },
     {"name": "string", "symbols": [(lexer.has("StringLiteral") ? {type: "StringLiteral"} : StringLiteral)], "postprocess": d => ({ operation: "primitive", value: d[0].value,position: position(d[0]), type: "string" })},
-    {"name": "identifier", "symbols": [(lexer.has("Identifier") ? {type: "Identifier"} : Identifier)], "postprocess": d => ({ operation: "identifier", value: d[0].value, position: { line: d[0].line, col: d[0].col } })},
+    {"name": "identifier", "symbols": [(lexer.has("Identifier") ? {type: "Identifier"} : Identifier)], "postprocess": d => ({ negative: d[0].value[0] === "-", operation: "identifier", value: d[0].value[0] === "-" ? d[0].value.substr(1) : d[0].value, position: { line: d[0].line, col: d[0].col } })},
     {"name": "_$ebnf$1", "symbols": []},
     {"name": "_$ebnf$1", "symbols": ["_$ebnf$1", /[\s]/], "postprocess": (d) => d[0].concat([d[1]])},
     {"name": "_", "symbols": ["_$ebnf$1"], "postprocess": (d) =>  null},

@@ -1,0 +1,21 @@
+use "std"
+use "scope"
+
+stack:verb [value] {
+  init {
+    let index = 0
+  }
+
+  switch verb {
+    case push {
+      scope:push(index, value)
+      return 0
+    }
+    case read {
+      return scope:read(value, 0)
+    }
+    default {
+      throw unknown
+    }
+  }
+}
