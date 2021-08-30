@@ -83,6 +83,7 @@ const lexer = moo.compile({
       Let: "let",
       Init: "init",
       Return: "return",
+      Throw: "throw",
 			Debugger: "debugger",
 			Implements: "implements",
   		If: "if",
@@ -175,6 +176,7 @@ Statement
 	| WhileStatement {%id%}
 	| IfStatement {%id%}
 	| ReturnStatement {%id%}
+  | ThrowStatement {%id%}
   | AssignStatement {%id%}
   | QuantityModifierStatement {%id%}
 
@@ -244,6 +246,7 @@ AssignStatement -> Mutatable _ "=" _ Expression
   }) %}
 
 ReturnStatement -> "return" __ Expression {% d => ({ operation: "return_statement", expression: d[2], position: position(d[0]) }) %}
+ThrowStatement -> "throw" __ Expression {% d => ({ operation: "throw_statement", expression: d[2], position: position(d[0]) }) %}
 
 BlockDeclarationStatement -> identifier BlockVerb:* __ "[" _ (ArgumentList _ {% id %}):? "]" _ BlockContent
 	{% d => ({ operation: "block_declaration", name: d[0], verbs: d[1], arguments: d[5], body: d[8], position: d[0].position, implementing: false, initialized: false }) %}

@@ -10,17 +10,19 @@ const input = 4206908
 const output = 4206909
 const done = 4206910
 
-scope:verb [key, value, supScope] {
-	if verb == push {
-    return __implementor_interface__:push (key, value, supScope + 2)
-  }elif verb == read {
-    return __implementor_interface__:read (key, supScope + 2)
-  }else {
-    return -1
-  }
-}
+const true = 1
+const false = 0
+
+const std_in = 4206911
+const std_out = 4206912
 
 print [message] {
-  __implementor_interface__:output (message, 1)
-  return __implementor_interface__:output (done)
+  bir:output (message, 1)
+  return bir:output (done)
+}
+
+println [message] {
+  bir:output (message, 1)
+  bir:output (10)
+  return bir:output (done)
 }

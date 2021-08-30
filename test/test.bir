@@ -1,15 +1,11 @@
-use "std"
-use "console"
-use "stack"
-
-let a = 1
-
-switch a {
-  case 1 {
-    return 8
-  }
-  case 20 {}
-  case 30 {}
+d [] {
+  return 20
 }
 
-print(10)
+add [] {
+  throw d ()
+
+  return 0
+}
+
+add ()

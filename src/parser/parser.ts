@@ -96,6 +96,7 @@ const lexer = moo.compile({
       Let: "let",
       Init: "init",
       Return: "return",
+      Throw: "throw",
 			Debugger: "debugger",
 			Implements: "implements",
   		If: "if",
@@ -209,6 +210,7 @@ const grammar: Grammar = {
     {"name": "Statement", "symbols": ["WhileStatement"], "postprocess": id},
     {"name": "Statement", "symbols": ["IfStatement"], "postprocess": id},
     {"name": "Statement", "symbols": ["ReturnStatement"], "postprocess": id},
+    {"name": "Statement", "symbols": ["ThrowStatement"], "postprocess": id},
     {"name": "Statement", "symbols": ["AssignStatement"], "postprocess": id},
     {"name": "Statement", "symbols": ["QuantityModifierStatement"], "postprocess": id},
     {"name": "VariableDeclarationStatement$subexpression$1", "symbols": [{"literal":"const"}], "postprocess": id},
@@ -263,6 +265,7 @@ const grammar: Grammar = {
           position: d[0].position 
         }) },
     {"name": "ReturnStatement", "symbols": [{"literal":"return"}, "__", "Expression"], "postprocess": d => ({ operation: "return_statement", expression: d[2], position: position(d[0]) })},
+    {"name": "ThrowStatement", "symbols": [{"literal":"throw"}, "__", "Expression"], "postprocess": d => ({ operation: "throw_statement", expression: d[2], position: position(d[0]) })},
     {"name": "BlockDeclarationStatement$ebnf$1", "symbols": []},
     {"name": "BlockDeclarationStatement$ebnf$1", "symbols": ["BlockDeclarationStatement$ebnf$1", "BlockVerb"], "postprocess": (d) => d[0].concat([d[1]])},
     {"name": "BlockDeclarationStatement$ebnf$2$subexpression$1", "symbols": ["ArgumentList", "_"], "postprocess": id},

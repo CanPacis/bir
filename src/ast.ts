@@ -23,6 +23,7 @@ namespace Bir {
 		| WhileStatement
 		| IfStatement
 		| ReturnStatement
+		| ThrowStatement
 		| AssignStatement
 		| QuantityModifierStatement;
 
@@ -114,6 +115,12 @@ namespace Bir {
 
 	export interface ReturnStatement {
 		operation: "return_statement";
+		expression: Expression;
+		position: Position;
+	}
+
+	export interface ThrowStatement {
+		operation: "throw_statement";
 		expression: Expression;
 		position: Position;
 	}

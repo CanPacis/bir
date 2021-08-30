@@ -98,12 +98,13 @@ export default class Scope {
 	findBlock(
 		name: string
 	): ScopeBlock {
-		let value = this.blocks.find((b) => b.name.value === name);
+		let _name = name[0] === "$" ? name.substr(1) : name
+		let value = this.blocks.find((b) => b.name.value === _name);
 		let result: ScopeBlock = { block: value, foreign: false }
 
 		if (!value) {
 			for (const parent of this.parents) {
-				let supValue = parent.findBlock(name);
+				let supValue = parent.findBlock(_name);
 				if (supValue.block) {
 					result = supValue;
 					break;
