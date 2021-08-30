@@ -1,4 +1,16 @@
 use "std"
 use "console"
 
-print (60)
+question implements console {"Name: "}
+question:output (0)
+
+name implements console
+message implements console {"Hello "}
+
+name:input (0)
+
+for name:length (0) as i {
+  message:write (name:read (i))
+}
+
+message:output (0)

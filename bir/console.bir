@@ -54,39 +54,42 @@ console:verb [value] {
     let index = 0
   }
 
-  if verb == write {
-    index++
-    scope:push (index, value, 1)
-    return 0
-  } elif verb == read {
-    return scope:read (value, 0, 1)
-  } elif verb == update {
-    index = value
-    return -1
-  } elif verb == length {
-    return index
-  } elif verb == input {
-    let d = -1
-    __implementor_interface__:input (1)
+  switch verb {
+    case write {
+      scope:push (index, value)
+      index++
+      return 0
+    }
+    case read {
+      return scope:read (value, 0)
+    }
+    case length {
+      return index
+    }
+    case input {
+      let d = -1
+      bir:input (1)
 
-    while d !== done {
-      index += 1
-      d = __implementor_interface__:input (0)
+      while d !== done {
+        d = bir:input (0)
 
-      if d !== done {
-        scope:push (index, d, 3)
+        if d !== done {
+          scope:push (index, d)
+          index++
+        }
       }
+
+      return 0
     }
+    case output {
+      for index as i {
+        bir:output (scope:read (i, 0))
+      }
 
-    return 0
-  } elif verb == output {
-
-    for index as i {
-      __implementor_interface__:output (scope:read (i, 0, 2))
+      return bir:output (done)
     }
-
-    return __implementor_interface__:output (done)
-  } else {
-    return -1
+    default {
+      throw unknown
+    }
   }
 }

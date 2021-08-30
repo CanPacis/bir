@@ -37,8 +37,8 @@ export default class Implementor {
 						return await Implementor.ScopePush(engine, args);
 					// case InterfaceName.Assign:
 					// 	return await Implementor.ScopeAssign(engine, args);
-					// case InterfaceName.Input:
-					// 	return await Implementor.ScopeInput(engine, args);
+					case InterfaceName.Input:
+						return await Implementor.ScopeInput(engine, args);
 					case InterfaceName.Output:
 						return await Implementor.ScopeOutput(engine, args);
 					default:
@@ -108,38 +108,31 @@ export default class Implementor {
 		}
 	}
 
-	// static async ScopeInput(
-	// 	engine: BirEngine,
-	// 	args: Bir.IntPrimitiveExpression[]
-	// ): Promise<Bir.IntPrimitiveExpression> {
-	// 	if (args[0].value === 1) {
-	// 		let input = prompt("") || "";
-	// 		let encoder = new TextEncoder();
-	// 		// const buf = new Uint8Array(1024);
+	static async ScopeInput(
+		_: BirEngine,
+		args: Bir.IntPrimitiveExpression[]
+	): Promise<Bir.IntPrimitiveExpression> {
+		if (args[0].value === 1) {
+			const buf = new Uint8Array(1024);
 
-	// 		// // Write question to console
-	// 		// await stdout.write(new TextEncoder().encode(question));
+			await Deno.stdout.write(new TextEncoder().encode(""));
+			const n = <number>await Deno.stdin.read(buf);
+			
+			input_buffer = Array.from(buf.subarray(0, n));
+			return BirUtil.generateInt(0);
+		} else {
+			let char = input_buffer.shift();
 
-	// 		// // Read console's input into answer
-	// 		// const n = <number>await stdin.read(buf);
-	// 		// const answer = new TextDecoder().decode(buf.subarray(0, n));
-
-	// 		// return answer.trim();
-	// 		input_buffer = Array.from(encoder.encode(input));
-	// 		return BirUtil.generateInt(0);
-	// 	} else {
-	// 		let char = input_buffer.shift();
-
-	// 		if (char) {
-	// 			return BirUtil.generateInt(char);
-	// 		} else {
-	// 			return BirUtil.generateInt(InterfaceName.Done);
-	// 		}
-	// 	}
-	// }
+			if (char) {
+				return BirUtil.generateInt(char);
+			} else {
+				return BirUtil.generateInt(InterfaceName.Done);
+			}
+		}
+	}
 
 	static async ScopeOutput(
-		engine: BirEngine,
+		_: BirEngine,
 		args: Bir.IntPrimitiveExpression[]
 	): Promise<Bir.IntPrimitiveExpression> {
 		if (args[0].value === InterfaceName.Done) {
