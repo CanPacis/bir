@@ -15,10 +15,9 @@ export default class BirError {
 		public position: Bir.Position,
 		anonymous: boolean = false
 	) {
-		console.log(message);
+		console.log(message, `at ${report.filename} ${position.line}:${position.col}\n`);
 
 		if(!anonymous) {
-			Deno.stdout.write((new TextEncoder()).encode(`at ${report.filename} ${position.line}:${position.col}\n`))
 			console.log(this.getSnippet());
 			console.log("Callstack:")
 			console.log(report.callstack.map(s => `\t-> ${s.name} ()`).join("\n"))

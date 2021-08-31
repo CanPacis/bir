@@ -1,15 +1,15 @@
 use "std"
-
+use "decoder"
 
 print [message] {
   decoder implements uint16decoder
   decoder:write (message)
 
   for decoder:length (0) as i {
-    bir:output (decoder:read (i))
+    bir:push (decoder:read (i))
   }
 
-  bir:output (done)
+  bir:output ()
 }
 
 println [message] {
@@ -17,36 +17,6 @@ println [message] {
   bir:push (10)
   return bir:output ()
 }
-
-uint16decoder:verb [n] {
-  init {
-    let index = 0
-
-    for 10 as i {
-      [Write 1000000 + i, i + 48]
-    }
-  }
-
-  switch verb {
-    case write {
-      for n log as i {
-        let value = {n / {10^i}} % 10
-        [Write n log - 1 - index, value]
-        index++
-      }
-    }
-    case read {
-      return [Read 1000000 + [Read n]]
-    }
-    case length {
-      return index
-    }
-    default {
-      throw unknown
-    }
-  }
-}
-
 
 console:verb [value] {
   init {

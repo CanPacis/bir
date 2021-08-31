@@ -6,7 +6,9 @@ if (Deno.args[0]) {
 	await engine.init();
 	await engine.run();
 
-	// console.log(engine.currentScope);
+	// console.log(engine.currentScope.blocks[1].instance);
+	// console.log(engine.currentScope.blocks[2].instance);
+	// console.log(engine.currentScope.frame);
 } else {
 	let report: ErrorReport = {
 		filename: "",

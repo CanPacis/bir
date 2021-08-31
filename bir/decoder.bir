@@ -1,0 +1,30 @@
+use "std"
+
+uint16decoder:verb [n] {
+  init {
+    let index = 0
+
+    for 10 as i {
+      [Write 1000000 + i, i + 48]
+    }
+  }
+
+  switch verb {
+    case write {
+      for n log as i {
+        let value = {n / {10^i}} % 10
+        [Write n log - 1 - index, value]
+        index++
+      }
+    }
+    case read {
+      return [Read 1000000 + [Read n]]
+    }
+    case length {
+      return index
+    }
+    default {
+      throw unknown
+    }
+  }
+}

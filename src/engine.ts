@@ -44,15 +44,35 @@ export default class BirEngine {
 		this.filename = parsed.base;
 		this.directory = parsed.dir;
 		this.content = decoder.decode(await Deno.readFile(this.path));
-		this.parsed = parser.parse(this.content);
-		this.callstack = [{ name: "main", stack: this.parsed.program }];
-		this.currentScope.addBlock(Implementor.Interface(this));
 		this.errorReport = {
 			filename: this.filename,
 			path: this.path,
 			callstack: this.callstack,
 			content: this.content,
 		};
+
+		try {
+			this.parsed = parser.parse(this.content);
+		} catch (error) {
+			this.callstack = [{ name: "main", stack: [] }];
+			let lines = error.message.split("\n");
+			let line = lines[0].split("line")[1].split(" ")[1].trim();
+			let col = lines[0]
+				.split("col")[1]
+				.split("")
+				.reverse()
+				.join("")
+				.substr(1)
+				.split("")
+				.reverse()
+				.join("")
+				.trim();
+			let message = lines[4].split(". Instead")[0];
+			new BirError(this.errorReport, message, { line, col });
+		}
+
+		this.callstack = [{ name: "main", stack: this.parsed.program }];
+		this.currentScope.addBlock(Implementor.Interface(this));
 
 		for await (const use of this.parsed.imports) {
 			let dir = Deno.readDir(this.standardPath);
@@ -203,6 +223,7 @@ export default class BirEngine {
 				}
 			}
 		}
+
 		if (block) {
 			if (statement.mutater.value === "Read" && args.length < 1) {
 				new BirError(
@@ -224,9 +245,15 @@ export default class BirEngine {
 				);
 			}
 
+			let instance = block.instance;
+
+			if (!instance) {
+				instance = block.superInstance;
+			}
+
 			switch (statement.mutater.value) {
 				case "Read":
-					var result = block.instance.find(`value_${args[0].value}`);
+					var result = instance.find(`value_${args[0].value}`);
 					if (result) {
 						return result;
 					} else {
@@ -238,16 +265,16 @@ export default class BirEngine {
 						return BirUtil.generateInt(-1);
 					}
 				case "Write":
-					block.instance.push(
+					instance.push(
 						BirUtil.generateIdentifier(`value_${args[0].value}`),
 						args[1],
 						"const"
 					);
 					return BirUtil.generateInt(1);
 				case "Delete":
-					var result = block.instance.find(`value_${args[0].value}`);
+					var result = instance.find(`value_${args[0].value}`);
 					if (result) {
-						return block.instance.delete(`value_${args[0].value}`);
+						return instance.delete(`value_${args[0].value}`);
 					} else {
 						new BirError(
 							this.errorReport,
@@ -435,29 +462,36 @@ export default class BirEngine {
 	): Promise<void> {
 		statement.owner = this.id;
 		if (!statement.implementing) {
-			if (statement.body.init) {
-				let instance = new Scope([]);
-				let initScope = new Scope([this.currentScope]);
-				this.scopestack.push(initScope);
-				this.callstack.push({
-					name: `$${statement.name.value}`,
-					stack: JSON.parse(JSON.stringify(statement.body.init)),
-				});
-				await this.resolveCallstack(this.currentCallstack);
-				let lastScope = this.scopestack.pop();
-				if (lastScope) {
-					instance = lastScope;
-				}
-				statement.instance = instance;
-			} else {
-				statement.instance = new Scope([this.currentScope]);
-			}
-			statement.initialized = true;
-
+			statement.superInstance = new Scope([this.currentScope]);
 			if (
 				this.currentScope.findBlock(statement.name.value).block === undefined
 			) {
 				this.currentScope.addBlock(statement);
+
+				if (statement.body.init) {
+					let instance = new Scope([]);
+					let initScope = new Scope([this.currentScope]);
+					this.scopestack.push(initScope);
+					this.callstack.push({
+						name: `$${statement.name.value}`,
+						stack: JSON.parse(JSON.stringify(statement.body.init)),
+					});
+					await this.resolveCallstack(this.currentCallstack);
+					let lastScope = this.scopestack.pop();
+					if (lastScope) {
+						instance = lastScope;
+					}
+					statement.instance = instance;
+				} else {
+					statement.instance = new Scope([this.currentScope]);
+				}
+				statement.initialized = true;
+				statement.instance.frame = statement.instance.frame.concat(
+					statement.superInstance.frame
+				);
+				statement.instance.blocks = statement.instance.blocks.concat(
+					statement.superInstance.blocks
+				);
 			} else {
 				new BirError(
 					this.errorReport,
@@ -472,31 +506,37 @@ export default class BirEngine {
 			if (superBlock) {
 				let copy: Bir.BlockDeclarationStatement = Object.assign(superBlock, {});
 
-				if (copy.body.init) {
-					let instance = new Scope([]);
-					let initScope = new Scope([this.currentScope]);
-					this.scopestack.push(initScope);
-					this.callstack.push({
-						name: `$${copy.name.value}`,
-						stack: JSON.parse(JSON.stringify(copy.body.init)),
-					});
-					await this.resolveCallstack(this.currentCallstack);
-					let lastScope = this.scopestack.pop();
-					if (lastScope) {
-						instance = lastScope;
-					}
-					statement.instance = instance;
-				} else {
-					statement.instance = new Scope([this.currentScope]);
-				}
-				statement.initialized = true;
-
-				await this.populateBlockStatement(statement);
+				statement.superInstance = new Scope([this.currentScope]);
 
 				if (
 					this.currentScope.findBlock(statement.name.value).block === undefined
 				) {
 					this.currentScope.addBlock(statement);
+					if (copy.body.init) {
+						let instance = new Scope([]);
+						let initScope = new Scope([this.currentScope]);
+						this.scopestack.push(initScope);
+						this.callstack.push({
+							name: `$${copy.name.value}`,
+							stack: JSON.parse(JSON.stringify(copy.body.init)),
+						});
+						await this.resolveCallstack(this.currentCallstack);
+						let lastScope = this.scopestack.pop();
+						if (lastScope) {
+							instance = lastScope;
+						}
+						statement.instance = instance;
+					} else {
+						statement.instance = new Scope([this.currentScope]);
+					}
+					statement.initialized = true;
+					statement.instance.frame = statement.instance.frame.concat(
+						statement.superInstance.frame
+					);
+					statement.instance.blocks = statement.instance.blocks.concat(
+						statement.superInstance.blocks
+					);
+					await this.populateBlockStatement(statement);
 				} else {
 					new BirError(
 						this.errorReport,
@@ -913,7 +953,13 @@ export default class BirEngine {
 				value = Math.pow(left.value, 1 / right.value);
 				return BirUtil.generateInt(value);
 			case "log10":
-				value = Math.ceil(Math.log10(left.value));
+				if (left.value === 0 || left.value === 1) {
+					value = 1;
+				} else if (BirUtil.isPowerOfTen(left.value)) {
+					value = Math.ceil(Math.log10(left.value)) + 1;
+				} else {
+					value = Math.ceil(Math.log10(left.value));
+				}
 				return BirUtil.generateInt(value);
 		}
 	}

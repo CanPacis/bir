@@ -1,11 +1,5 @@
 use "std"
 use "console"
 
-message implements console {"Hello "}
-
-message:input (0)
-message:output (0)
-
-printer implements print
-
-printer (message:length (0))
+println (10)
+print (10)
