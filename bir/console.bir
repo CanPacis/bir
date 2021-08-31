@@ -1,10 +1,9 @@
 use "std"
-use "scope"
 
 
 print [message] {
   decoder implements uint16decoder
-  decoder:push (message)
+  decoder:write (message)
 
   for decoder:length (0) as i {
     bir:output (decoder:read (i))
@@ -15,8 +14,8 @@ print [message] {
 
 println [message] {
   print (message)
-  bir:output (10)
-  return bir:output (done)
+  bir:push (10)
+  return bir:output ()
 }
 
 uint16decoder:verb [n] {
@@ -24,20 +23,20 @@ uint16decoder:verb [n] {
     let index = 0
 
     for 10 as i {
-      scope:push (1000000 + i, i + 48)
+      [Write 1000000 + i, i + 48]
     }
   }
 
   switch verb {
-    case push {
+    case write {
       for n log as i {
         let value = {n / {10^i}} % 10
-        scope:push (n log - 1 - index, value)
+        [Write n log - 1 - index, value]
         index++
       }
     }
     case read {
-      return scope:read(1000000 + scope:read(n, 0), 1)
+      return [Read 1000000 + [Read n]]
     }
     case length {
       return index
@@ -56,12 +55,12 @@ console:verb [value] {
 
   switch verb {
     case write {
-      scope:push (index, value)
+      [Write index, value]
       index++
       return 0
     }
     case read {
-      return scope:read (value, 0)
+      return [Read value]
     }
     case length {
       return index
@@ -74,7 +73,7 @@ console:verb [value] {
         d = bir:input (0)
 
         if d !== done {
-          scope:push (index, d)
+          [Write index, d]
           index++
         }
       }
@@ -83,7 +82,7 @@ console:verb [value] {
     }
     case output {
       for index as i {
-        bir:output (scope:read (i, 0))
+        bir:output ([Read i])
       }
 
       return bir:output (done)

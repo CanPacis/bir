@@ -1,5 +1,5 @@
 import BirEngine from "./engine.ts";
-import Scope from "./scope.ts";
+import { Scope } from "./scope.ts";
 
 namespace Bir {
 	export interface Program {
@@ -25,6 +25,7 @@ namespace Bir {
 		| ReturnStatement
 		| ThrowStatement
 		| AssignStatement
+		| ScopeMutaterExpression
 		| QuantityModifierStatement;
 
 	export interface VariableDeclarationStatement {
@@ -36,7 +37,7 @@ namespace Bir {
 	}
 
 	export interface BlockDeclarationStatement {
-		owner: BirEngine;
+		owner: BirEngine["id"];
 		operation: "block_declaration";
 		name: Identifier;
 		verbs: Identifier[];
@@ -52,7 +53,7 @@ namespace Bir {
 	}
 
 	export interface NativeBlockDeclarationStatement {
-		owner: BirEngine;
+		owner: BirEngine["id"];
 		operation: "native_block_declaration";
 		name: Identifier;
 		verbs: Identifier[];
@@ -137,6 +138,13 @@ namespace Bir {
 		position: Position;
 	}
 
+	export interface ScopeMutaterExpression {
+		operation: "scope_mutater_expression";
+		mutater: MutaterKeyword;
+		arguments?: Expression[];
+		position: Position;
+	}
+
 	export interface QuantityModifierStatement {
 		operation: "quantity_modifier_statement";
 		type: QuantityModifierType;
@@ -161,6 +169,7 @@ namespace Bir {
 		| ConditionExpression
 		| ArithmeticExpression
 		| BlockCallExpression
+		| ScopeMutaterExpression
 		| PrimitiveExpression
 		| ReferenceExpression;
 
@@ -209,7 +218,7 @@ namespace Bir {
 	export interface ArrayPrimitiveExpression {
 		operation: "primitive";
 		type: "array";
-		values: IntPrimitiveExpression[];
+		values: Expression[];
 		position: Position;
 	}
 
@@ -262,6 +271,13 @@ namespace Bir {
 		operation: "identifier";
 		negative: boolean;
 		value: string;
+		position: Position;
+	}
+
+	export interface MutaterKeyword {
+		operation: "identifier";
+		negative: boolean;
+		value: "Write" | "Read" | "Delete";
 		position: Position;
 	}
 }

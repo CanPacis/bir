@@ -1,5 +1,5 @@
 import Bir from "./ast.ts";
-import BirEngine from "./engine.ts";
+import BirUtil from "./util.ts";
 
 export enum UpdateReport {
 	Granted = 0,
@@ -15,7 +15,15 @@ export interface ScopeBlock {
 	foreign: boolean;
 }
 
-export default class Scope {
+export class ScopeStack {
+	scopes: Scope[]
+
+	constructor() {
+		this.scopes = []
+	}
+}
+
+export class Scope {
 	immutable: boolean;
 	foreign: boolean;
 	frame: Array<{
@@ -48,9 +56,9 @@ export default class Scope {
 
 		if (!value) {
 			for (const parent of this.parents) {
-				let supValue = parent.find(name);
-				if (supValue) {
-					value = supValue;
+				let superValue = parent.find(name);
+				if (superValue) {
+					value = superValue;
 					break;
 				}
 			}
@@ -59,6 +67,34 @@ export default class Scope {
 		} else {
 			return value;
 		}
+	}
+
+	findIndex(name: string): number {
+		let i = this.frame.findIndex((d) => d.key.value === name);
+		
+		if (i < 0) {
+			for (const parent of this.parents) {
+				let superValue = parent.findIndex(name);
+				if (superValue) {
+					i = superValue;
+					break;
+				}
+			}
+
+			return i;
+		} else {
+			return i;
+		}
+	}
+
+	delete(name: string): Bir.IntPrimitiveExpression {
+		let i = this.findIndex(name)
+
+		if(i >= 0) {
+			this.frame.splice(i, 1)
+		}
+
+		return BirUtil.generateInt(0)
 	}
 
 	async update(
@@ -104,9 +140,9 @@ export default class Scope {
 
 		if (!value) {
 			for (const parent of this.parents) {
-				let supValue = parent.findBlock(_name);
-				if (supValue.block) {
-					result = supValue;
+				let superValue = parent.findBlock(_name);
+				if (superValue.block) {
+					result = superValue;
 					break;
 				}
 			}

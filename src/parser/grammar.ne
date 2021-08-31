@@ -94,7 +94,10 @@ const lexer = moo.compile({
   		While: "while",
   		As: "as",
       Case: "case",
-      Log: "log"
+      Log: "log",
+      Read: "Read",
+      Write: "Write",
+      Delete: "Delete",
     })
   },
   Minus: "-"
@@ -166,6 +169,7 @@ Use -> "use" __ string
 Main 
 	-> Statement {% id %}
   | BlockCall {% id %}
+  | ScopeMutaterExpression {%id%}
 	| Comment {% id %}
 
 
@@ -259,6 +263,14 @@ BlockDeclarationStatement -> identifier BlockVerb:* __ "[" _ (ArgumentList _ {% 
 
 BlockVerb -> ":" Expression {% d => d[1] %}
 
+MutaterKeyword -> ("Read" {%id%} | "Write" {%id%} | "Delete" {%id%}) 
+  {% d => ({ 
+    negative: d[0].value[0] === "-", 
+    operation: "identifier", 
+    value: d[0].value, 
+    position: { line: d[0].line, col: d[0].col } 
+  }) %}
+
 BlockContent -> "{" _ (BlockInit _ {% id %}):?
   (Main _ {% id %}):* "}" 
   {% d => ({ init: d[2], program: d[3] }) %} 
@@ -290,6 +302,15 @@ Exponent
 
 Caller 
   -> BlockCall {% id %}
+  | ScopeMutaterExpression {% id %}
+
+ScopeMutaterExpression -> "[" _ MutaterKeyword (__ ArgumentList _ {% d => d[1] %}):? "]"
+  {% d => ({ 
+    operation: "scope_mutater_expression", 
+    mutater: d[2], 
+    arguments: d[3],
+    position: position(d[0]) 
+  }) %}
   | SubExpression {% id %}
 
 BlockCall 
@@ -349,11 +370,7 @@ CodeBlock -> "{" _ (Main _ {% id %}):* "}"
 Mutatable 
   -> VariableReference {% id %}
 
-NumberList 
-  -> number _ "," _ NumberList {% d => [d[0], ...d[4]] %}
-  | number {% d => [d[0]] %}
-
-array -> "[" (NumberList _ {% id %}):? "]" 
+array -> "[" (ArgumentList _ {% id %}):? "]" 
   {% d => ({
     operation: "primitive",
     type: "array", 

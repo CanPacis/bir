@@ -2,11 +2,14 @@ use "std"
 
 scope:verb [index, value] {
   switch verb {
-    case push {
-      return bir:push (index, value)
+    case write {
+      return bir:write (index, value)
     }
     case read {
       return bir:read (index)
+    }
+    case delete {
+      return bir:delete (index)
     }
     default {
       throw unknown

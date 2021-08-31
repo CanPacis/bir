@@ -2,11 +2,14 @@ import { BirParser } from "./parser/parser.ts";
 import Bir from "./ast.ts";
 import { parse, join } from "https://deno.land/std@0.106.0/path/mod.ts";
 import BirUtil from "./util.ts";
-import Scope from "./scope.ts";
+import { Scope } from "./scope.ts";
 import BirError, { ErrorReport } from "./error.ts";
 import Implementor from "./implementor/implementor.ts";
 
+export type EngineUse = BirEngine;
+
 export default class BirEngine {
+	id: string;
 	callstack: BirUtil.Callstack[];
 	scopestack: Scope[];
 	filename: string;
@@ -16,11 +19,14 @@ export default class BirEngine {
 	errorReport: ErrorReport;
 	maximumCallstackSize: number;
 	standardPath: string;
+	uses: EngineUse[];
 
 	constructor(public path: string) {
+		this.id = BirUtil.uuidv4();
 		this.maximumCallstackSize = 8000;
 		this.callstack = [];
 		this.scopestack = [];
+		this.uses = [];
 		this.filename = "";
 		this.directory = "";
 		this.content = "";
@@ -69,6 +75,7 @@ export default class BirEngine {
 				parentScope.immutable = true;
 				parentScope.foreign = true;
 				this.currentScope.parents.push(parentScope);
+				this.uses.push(useEngine);
 			} else {
 				new BirError(
 					this,
@@ -146,6 +153,9 @@ export default class BirEngine {
 				case "block_call":
 					await this.resolveBlockCall(statement);
 					break;
+				case "scope_mutater_expression":
+					await this.resolveScopeMutaterExpression(statement);
+					break;
 				case "for_statement":
 					await this.resolveForStatement(statement);
 					break;
@@ -167,6 +177,94 @@ export default class BirEngine {
 
 		this.callstack.pop();
 		return value;
+	}
+
+	async resolveScopeMutaterExpression(
+		statement: Bir.ScopeMutaterExpression
+	): Promise<Bir.IntPrimitiveExpression> {
+		let args: Bir.IntPrimitiveExpression[] = [];
+
+		for await (const arg of statement.arguments || []) {
+			args.push(await this.resolveExpression(arg));
+		}
+
+		let block = null;
+
+		let i = 0;
+		for (const stack of this.callstack) {
+			let scope = this.currentScope.findBlock(stack.name);
+			if (scope.block) {
+				if (i === 0) {
+					block = scope.block;
+					break;
+				} else {
+					i++;
+					continue;
+				}
+			}
+		}
+		if (block) {
+			if (statement.mutater.value === "Read" && args.length < 1) {
+				new BirError(
+					this.errorReport,
+					`Read operation for scope mutation needs at least 1 argument for read index`,
+					statement.position
+				);
+			} else if (statement.mutater.value === "Delete" && args.length < 1) {
+				new BirError(
+					this.errorReport,
+					`Delete operation for scope mutation needs at least 1 argument for delete index`,
+					statement.position
+				);
+			} else if (statement.mutater.value === "Write" && args.length < 2) {
+				new BirError(
+					this.errorReport,
+					`Write operation for scope mutation needs at least 2 arguments for write index and write value`,
+					statement.position
+				);
+			}
+
+			switch (statement.mutater.value) {
+				case "Read":
+					var result = block.instance.find(`value_${args[0].value}`);
+					if (result) {
+						return result;
+					} else {
+						new BirError(
+							this.errorReport,
+							`Failed to read value index ${args[0].value} from scope ${block.name.value}, the value is non-existent`,
+							statement.position
+						);
+						return BirUtil.generateInt(-1);
+					}
+				case "Write":
+					block.instance.push(
+						BirUtil.generateIdentifier(`value_${args[0].value}`),
+						args[1],
+						"const"
+					);
+					return BirUtil.generateInt(1);
+				case "Delete":
+					var result = block.instance.find(`value_${args[0].value}`);
+					if (result) {
+						return block.instance.delete(`value_${args[0].value}`);
+					} else {
+						new BirError(
+							this.errorReport,
+							`Failed to delete value index ${args[0].value} from scope ${block.name.value}, the value is non-existent`,
+							statement.position
+						);
+						return BirUtil.generateInt(-1);
+					}
+			}
+		} else {
+			new BirError(
+				this.errorReport,
+				`Failed to find a mutatable instance scope`,
+				statement.position
+			);
+			return BirUtil.generateInt(-1);
+		}
 	}
 
 	async resolveSwitchStatement(
@@ -299,7 +397,7 @@ export default class BirEngine {
 						statement.instance.push(
 							BirUtil.generateIdentifier(`value_${i}`),
 							BirUtil.generateInt(value.charCodeAt(0)),
-							"let"
+							"const"
 						);
 						i++;
 					}
@@ -313,10 +411,11 @@ export default class BirEngine {
 				case "array":
 					var i = 0;
 					for (const primitive of statement.populate.values) {
+						let value = await this.resolveExpression(primitive);
 						statement.instance.push(
 							BirUtil.generateIdentifier(`value_${i}`),
-							BirUtil.generateInt(primitive.value),
-							"let"
+							value,
+							"const"
 						);
 						i++;
 					}
@@ -334,7 +433,7 @@ export default class BirEngine {
 	async resolveBlockDeclaration(
 		statement: Bir.BlockDeclarationStatement
 	): Promise<void> {
-		statement.owner = this;
+		statement.owner = this.id;
 		if (!statement.implementing) {
 			if (statement.body.init) {
 				let instance = new Scope([]);
@@ -533,6 +632,9 @@ export default class BirEngine {
 			case "block_call":
 				var r = await this.resolveBlockCall(expression);
 				return r;
+			case "scope_mutater_expression":
+				var r = await this.resolveScopeMutaterExpression(expression);
+				return r;
 			case "primitive":
 				return expression as Bir.IntPrimitiveExpression;
 			case "reference":
@@ -557,14 +659,17 @@ export default class BirEngine {
 		block: Bir.BlockDeclarationStatement,
 		expression: Bir.BlockCallExpression
 	): Promise<Bir.IntPrimitiveExpression> {
-		let scopestack = block.owner.scopestack;
-		block.owner.currentScope.foreign = false;
-		block.owner.callstack = this.callstack;
-		block.owner.scopestack = block.owner.scopestack.concat(this.scopestack);
-		let result = await block.owner.resolveBlockCall(expression, this);
-		block.owner.callstack = [];
-		block.owner.scopestack = scopestack;
-		block.owner.currentScope.foreign = true;
+		let owner = await this.findOwner(block.owner);
+
+		let scopestack = owner.scopestack;
+		owner.currentScope.foreign = false;
+		owner.callstack = this.callstack;
+		owner.scopestack = owner.scopestack.concat(this.scopestack);
+		let result = await owner.resolveBlockCall(expression, this);
+		// this.callstack = this.callstack.concat(block.owner.callstack)
+		owner.callstack = [];
+		owner.scopestack = scopestack;
+		owner.currentScope.foreign = true;
 		return result;
 	}
 
@@ -727,13 +832,11 @@ export default class BirEngine {
 		} else {
 			new BirError(
 				this.errorReport,
-				"Birlang script has overflown the maximum callstack size.",
+				"Birlang script has overflown the maximum callstack size",
 				expression.position
 			);
 			return Deno.exit(1);
 		}
-
-		// return BirUtil.generateInt(100);
 	}
 
 	async resolveConditionExpression(
@@ -813,5 +916,9 @@ export default class BirEngine {
 				value = Math.ceil(Math.log10(left.value));
 				return BirUtil.generateInt(value);
 		}
+	}
+
+	async findOwner(id: string): Promise<BirEngine> {
+		return this.uses.find((e) => e.id === id) as BirEngine;
 	}
 }

@@ -7,8 +7,8 @@ stack:verb [value] {
   }
 
   switch verb {
-    case push {
-      scope:push(index, value)
+    case write {
+      scope:write(index, value)
       return 0
     }
     case read {

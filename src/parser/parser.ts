@@ -107,7 +107,10 @@ const lexer = moo.compile({
   		While: "while",
   		As: "as",
       Case: "case",
-      Log: "log"
+      Log: "log",
+      Read: "Read",
+      Write: "Write",
+      Delete: "Delete",
     })
   },
   Minus: "-"
@@ -204,6 +207,7 @@ const grammar: Grammar = {
         }) },
     {"name": "Main", "symbols": ["Statement"], "postprocess": id},
     {"name": "Main", "symbols": ["BlockCall"], "postprocess": id},
+    {"name": "Main", "symbols": ["ScopeMutaterExpression"], "postprocess": id},
     {"name": "Main", "symbols": ["Comment"], "postprocess": id},
     {"name": "Statement", "symbols": ["VariableDeclarationStatement"], "postprocess": id},
     {"name": "Statement", "symbols": ["BlockDeclarationStatement"], "postprocess": id},
@@ -285,6 +289,15 @@ const grammar: Grammar = {
     {"name": "BlockDeclarationStatement$ebnf$3", "symbols": [], "postprocess": () => null},
     {"name": "BlockDeclarationStatement", "symbols": ["identifier", "_", {"literal":"implements"}, "_", "identifier", "BlockDeclarationStatement$ebnf$3"], "postprocess": d => ({ operation: "block_declaration", name: d[0], implements: d[4], position: d[0].position, implementing: true, populate: d[5], initialized: false })},
     {"name": "BlockVerb", "symbols": [{"literal":":"}, "Expression"], "postprocess": d => d[1]},
+    {"name": "MutaterKeyword$subexpression$1", "symbols": [{"literal":"Read"}], "postprocess": id},
+    {"name": "MutaterKeyword$subexpression$1", "symbols": [{"literal":"Write"}], "postprocess": id},
+    {"name": "MutaterKeyword$subexpression$1", "symbols": [{"literal":"Delete"}], "postprocess": id},
+    {"name": "MutaterKeyword", "symbols": ["MutaterKeyword$subexpression$1"], "postprocess":  d => ({ 
+          negative: d[0].value[0] === "-", 
+          operation: "identifier", 
+          value: d[0].value, 
+          position: { line: d[0].line, col: d[0].col } 
+        }) },
     {"name": "BlockContent$ebnf$1$subexpression$1", "symbols": ["BlockInit", "_"], "postprocess": id},
     {"name": "BlockContent$ebnf$1", "symbols": ["BlockContent$ebnf$1$subexpression$1"], "postprocess": id},
     {"name": "BlockContent$ebnf$1", "symbols": [], "postprocess": () => null},
@@ -310,7 +323,17 @@ const grammar: Grammar = {
     {"name": "Exponent", "symbols": ["Caller", "_", {"literal":"log"}], "postprocess": d => arithmetic("log10", d)},
     {"name": "Exponent", "symbols": ["Caller"], "postprocess": id},
     {"name": "Caller", "symbols": ["BlockCall"], "postprocess": id},
-    {"name": "Caller", "symbols": ["SubExpression"], "postprocess": id},
+    {"name": "Caller", "symbols": ["ScopeMutaterExpression"], "postprocess": id},
+    {"name": "ScopeMutaterExpression$ebnf$1$subexpression$1", "symbols": ["__", "ArgumentList", "_"], "postprocess": d => d[1]},
+    {"name": "ScopeMutaterExpression$ebnf$1", "symbols": ["ScopeMutaterExpression$ebnf$1$subexpression$1"], "postprocess": id},
+    {"name": "ScopeMutaterExpression$ebnf$1", "symbols": [], "postprocess": () => null},
+    {"name": "ScopeMutaterExpression", "symbols": [{"literal":"["}, "_", "MutaterKeyword", "ScopeMutaterExpression$ebnf$1", {"literal":"]"}], "postprocess":  d => ({ 
+          operation: "scope_mutater_expression", 
+          mutater: d[2], 
+          arguments: d[3],
+          position: position(d[0]) 
+        }) },
+    {"name": "ScopeMutaterExpression", "symbols": ["SubExpression"], "postprocess": id},
     {"name": "BlockCall$ebnf$1", "symbols": []},
     {"name": "BlockCall$ebnf$1", "symbols": ["BlockCall$ebnf$1", "BlockVerb"], "postprocess": (d) => d[0].concat([d[1]])},
     {"name": "BlockCall$ebnf$2$subexpression$1", "symbols": ["ArgumentList", "_"], "postprocess": id},
@@ -353,9 +376,7 @@ const grammar: Grammar = {
     {"name": "CodeBlock$ebnf$1", "symbols": ["CodeBlock$ebnf$1", "CodeBlock$ebnf$1$subexpression$1"], "postprocess": (d) => d[0].concat([d[1]])},
     {"name": "CodeBlock", "symbols": [{"literal":"{"}, "_", "CodeBlock$ebnf$1", {"literal":"}"}], "postprocess": d => d[2]},
     {"name": "Mutatable", "symbols": ["VariableReference"], "postprocess": id},
-    {"name": "NumberList", "symbols": ["number", "_", {"literal":","}, "_", "NumberList"], "postprocess": d => [d[0], ...d[4]]},
-    {"name": "NumberList", "symbols": ["number"], "postprocess": d => [d[0]]},
-    {"name": "array$ebnf$1$subexpression$1", "symbols": ["NumberList", "_"], "postprocess": id},
+    {"name": "array$ebnf$1$subexpression$1", "symbols": ["ArgumentList", "_"], "postprocess": id},
     {"name": "array$ebnf$1", "symbols": ["array$ebnf$1$subexpression$1"], "postprocess": id},
     {"name": "array$ebnf$1", "symbols": [], "postprocess": () => null},
     {"name": "array", "symbols": [{"literal":"["}, "array$ebnf$1", {"literal":"]"}], "postprocess":  d => ({

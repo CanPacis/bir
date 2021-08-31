@@ -12,13 +12,18 @@ export default class BirError {
 	constructor(
 		public report: ErrorReport,
 		public message: string,
-		public position: Bir.Position
+		public position: Bir.Position,
+		anonymous: boolean = false
 	) {
-		console.log(message, `at ${report.filename} ${position.line}:${position.col}\n`);
-		console.log(this.getSnippet());
-		console.log("Callstack:")
-		console.log(report.callstack.map(s => `\t-> ${s.name} ()`).join("\n"))
-		console.log(`File:\n\t${report.path}`);
+		console.log(message);
+
+		if(!anonymous) {
+			Deno.stdout.write((new TextEncoder()).encode(`at ${report.filename} ${position.line}:${position.col}\n`))
+			console.log(this.getSnippet());
+			console.log("Callstack:")
+			console.log(report.callstack.map(s => `\t-> ${s.name} ()`).join("\n"))
+			console.log(`File:\n\t${report.path}`);
+		}
 		
 		Deno.exit(1);
 	}

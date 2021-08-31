@@ -1,0 +1,16 @@
+const read_file = 42069020
+const write_file = 42069020
+
+io:verb [] {
+  init {
+    let index = 0
+  }
+
+  switch verb {
+    case read_file {
+      for index as i {
+        bir:input ()
+      }
+    }
+  }
+}

@@ -15,168 +15,85 @@ enum InterfaceName {
 	Output = 4206909,
 	Done = 4206910,
 	Unknown = 4206911,
+	Delete = 4206912,
+	Pull = 4206913,
 }
 
-let input_buffer: number[] = [];
-let output_buffer: number[] = [];
+let input_buffer = new BirUtil.IOBuffer();
+let output_buffer = new BirUtil.IOBuffer();
 
 export default class Implementor {
 	static Interface = (engine: BirEngine) =>
 		BirUtil.generateFunction(
 			"bir",
-			engine,
+			engine.id,
 			async (
 				engine: BirEngine,
 				verbs: Bir.IntPrimitiveExpression[],
 				args: Bir.IntPrimitiveExpression[]
 			) => {
 				switch (verbs[0].value) {
-					case InterfaceName.Read:
-						return await Implementor.ScopeRead(engine, args);
+					// case InterfaceName.Read:
+					// 	return await Implementor.ScopeRead(engine, args);
 					case InterfaceName.Push:
-						return await Implementor.ScopePush(engine, args);
+						return await Implementor.Push(args);
+					case InterfaceName.Pull:
+						return await Implementor.Pull(args);
 					// case InterfaceName.Assign:
 					// 	return await Implementor.ScopeAssign(engine, args);
 					case InterfaceName.Input:
-						return await Implementor.ScopeInput(engine, args);
+						return await Implementor.Input(args);
 					case InterfaceName.Output:
-						return await Implementor.ScopeOutput(engine, args);
+						return await Implementor.Output(args);
 					default:
 						return BirUtil.generateInt(0);
 				}
 			}
 		);
 
-	static async ScopePush(
-		engine: BirEngine,
+	// static async Write(): Promise<Bir.IntPrimitiveExpression> {
+
+	// }
+
+	static async Input(
 		args: Bir.IntPrimitiveExpression[]
 	): Promise<Bir.IntPrimitiveExpression> {
-		let block = null;
+		const buf = new Uint8Array(1024);
 
-		let i = 0;
-		for (const stack of engine.callstack) {
-			let scope = engine.currentScope.findBlock(stack.name);
-			if (scope.block) {
-				if (i === 0) {
-					block = scope.block;
-					break;
-				} else {
-					i++;
-					continue;
-				}
-			}
-		}
+		await Deno.stdout.write(new TextEncoder().encode(""));
+		const n = <number>await Deno.stdin.read(buf);
 
-		if (block) {
-			block.instance.push(
-				BirUtil.generateIdentifier(`value_${args[0].value}`),
-				args[1],
-				"let"
-			);
-			return BirUtil.generateInt(1);
-		} else {
-			return BirUtil.generateInt(-1);
-		}
-	}
-
-	static async ScopeRead(
-		engine: BirEngine,
-		args: Bir.IntPrimitiveExpression[]
-	): Promise<Bir.IntPrimitiveExpression> {
-		let block = null;
-
-		let i = 0;
-		for (const stack of engine.callstack) {
-			let scope = engine.currentScope.findBlock(stack.name);
-			if (scope.block) {
-				if (i === 0) {
-					block = scope.block;
-					break;
-				} else {
-					i++;
-					continue;
-				}
-			}
-		}
-
-		if (block) {
-			return (
-				block.instance.find(`value_${args[0].value}`) || BirUtil.generateInt(-1)
-			);
-		} else {
-			return BirUtil.generateInt(-1);
-		}
-	}
-
-	static async ScopeInput(
-		_: BirEngine,
-		args: Bir.IntPrimitiveExpression[]
-	): Promise<Bir.IntPrimitiveExpression> {
-		if (args[0].value === 1) {
-			const buf = new Uint8Array(1024);
-
-			await Deno.stdout.write(new TextEncoder().encode(""));
-			const n = <number>await Deno.stdin.read(buf);
-			
-			input_buffer = Array.from(buf.subarray(0, n));
-			return BirUtil.generateInt(0);
-		} else {
-			let char = input_buffer.shift();
-
-			if (char) {
-				return BirUtil.generateInt(char);
-			} else {
-				return BirUtil.generateInt(InterfaceName.Done);
-			}
-		}
-	}
-
-	static async ScopeOutput(
-		_: BirEngine,
-		args: Bir.IntPrimitiveExpression[]
-	): Promise<Bir.IntPrimitiveExpression> {
-		if (args[0].value === InterfaceName.Done) {
-			await Deno.stdout.write(Uint8Array.from(output_buffer));
-			output_buffer = [];
-		} else {
-			if (args[1]?.value === 1) {
-				let split = args[0].value.toString().split("");
-				for (let i = 0; i < split.length; i++) {
-					output_buffer.push(split[i].charCodeAt(0));
-				}
-			} else {
-				output_buffer.push(args[0].value);
-			}
-		}
+		input_buffer.assign(buf.subarray(0, n));
+		input_buffer.trim();
 		return BirUtil.generateInt(0);
 	}
 
-	static async ScopeDelete(
-		engine: BirEngine,
+	static async Output(
 		args: Bir.IntPrimitiveExpression[]
 	): Promise<Bir.IntPrimitiveExpression> {
-		let block = null;
+		await Deno.stdout.write(output_buffer.uint8Array());
+		output_buffer.clear();
 
-		let i = 0;
-		for (const stack of engine.callstack) {
-			let scope = engine.currentScope.findBlock(stack.name);
-			if (scope.block) {
-				if (i === 0) {
-					block = scope.block;
-					break;
-				} else {
-					i++;
-					continue;
-				}
-			}
-		}
+		return args[0] || BirUtil.generateInt(0);
+	}
 
-		if (block) {
-			return (
-				block.instance.find(`value_${args[0].value}`) || BirUtil.generateInt(-1)
-			);
+	static async Push(
+		args: Bir.IntPrimitiveExpression[]
+	): Promise<Bir.IntPrimitiveExpression> {
+		output_buffer.push(args[0].value);
+
+		return args[0] || BirUtil.generateInt(0);
+	}
+
+	static async Pull(
+		args: Bir.IntPrimitiveExpression[]
+	): Promise<Bir.IntPrimitiveExpression> {
+		let char = input_buffer.shift();
+
+		if (char) {
+			return BirUtil.generateInt(char);
 		} else {
-			return BirUtil.generateInt(-1);
+			return BirUtil.generateInt(InterfaceName.Done);
 		}
 	}
 }

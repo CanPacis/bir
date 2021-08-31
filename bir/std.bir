@@ -10,10 +10,8 @@ const input = 4206908
 const output = 4206909
 const done = 4206910
 const unknown = 4206911
+const delete = 4206912
+const pull = 4206913
 
 const true = 1
 const false = 0
-
-uint8block:verb [n] {
-  
-}
